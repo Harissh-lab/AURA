@@ -1,4 +1,5 @@
 """Mental health assessment and response module for AURA."""
+import random
 
 # Mental health questionnaire questions for assessment
 ASSESSMENT_QUESTIONS = [
@@ -281,7 +282,6 @@ def analyze_assessment(responses):
 
 def get_daily_affirmation():
     """Return a daily affirmation for positive mental health."""
-    import random
     affirmations = [
         "You are worthy of love and kindness.",
         "Every day is a new opportunity for growth.",
