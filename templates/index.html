@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AURA - Mental Health Support</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <h1>🌟 AURA</h1>
+            <span class="tagline">Your Mental Health Companion</span>
+        </div>
+        <ul class="nav-links">
+            <li><a href="/" class="active">Home</a></li>
+            <li><a href="/assessment">Assessment</a></li>
+            <li><a href="/resources">Resources</a></li>
+        </ul>
+    </nav>
+
+    <main class="container">
+        <section class="hero">
+            <h2>Welcome to AURA</h2>
+            <p class="hero-text">A safe space to talk about your feelings and find support for your mental well-being.</p>
+            <div class="affirmation-card">
+                <h3>✨ Today's Affirmation</h3>
+                <p id="affirmation">{{ affirmation }}</p>
+                <button onclick="refreshAffirmation()" class="btn btn-secondary">New Affirmation</button>
+            </div>
+        </section>
+
+        <section class="chat-section">
+            <h2>💬 Talk to AURA</h2>
+            <p class="section-subtitle">Share how you're feeling. I'm here to listen and support you.</p>
+            
+            <div class="chat-container">
+                <div id="chat-messages" class="chat-messages">
+                    <div class="message bot-message">
+                        <p>Hello! I'm AURA, your mental health companion. How are you feeling today? You can share anything that's on your mind.</p>
+                    </div>
+                </div>
+                
+                <form id="chat-form" class="chat-form">
+                    <input type="text" id="user-input" placeholder="Type how you're feeling..." autocomplete="off" required>
+                    <button type="submit" class="btn btn-primary">Send</button>
+                </form>
+            </div>
+        </section>
+
+        <section class="features">
+            <h2>How AURA Can Help</h2>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">📝</div>
+                    <h3>Mental Health Assessment</h3>
+                    <p>Take a quick assessment to understand your current mental state and get personalized recommendations.</p>
+                    <a href="/assessment" class="btn btn-outline">Take Assessment</a>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">💭</div>
+                    <h3>Supportive Conversations</h3>
+                    <p>Chat with AURA about your feelings. I'll provide supportive responses and coping strategies.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📚</div>
+                    <h3>Coping Resources</h3>
+                    <p>Access a library of coping strategies and resources for various mental health challenges.</p>
+                    <a href="/resources" class="btn btn-outline">View Resources</a>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="crisis-notice">
+            <p><strong>🆘 In Crisis?</strong> If you're having thoughts of suicide or self-harm, please reach out:</p>
+            <p>National Suicide Prevention Lifeline: <strong>988</strong> | Crisis Text Line: Text <strong>HOME</strong> to <strong>741741</strong></p>
+        </div>
+        <p>&copy; 2024 AURA - Mental Health Support Application</p>
+        <p class="disclaimer">AURA is not a replacement for professional mental health care. Please consult a healthcare provider for medical advice.</p>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
