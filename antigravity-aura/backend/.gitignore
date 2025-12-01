@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.pkl
+*.h5
+*.model
+venv/
+env/
+.env
+.venv

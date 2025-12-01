@@ -3,12 +3,14 @@ import { Menu, Sparkles, ImageIcon, Mic, Send } from 'lucide-react';
 import Sidebar from '../../components/navigation/Sidebar';
 import ChatMessage from '../../components/chat/ChatMessage';
 import { SUGGESTIONS, MOCK_RESPONSE } from '../../constants/data';
+import chatbotService from '../../services/chatbotService';
 
 const Dashboard = () => {
     const [input, setInput] = useState('');
     const [messages, setMessages] = useState([]);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isTyping, setIsTyping] = useState(false);
+    const [chatMode, setChatMode] = useState('friend'); // 'friend' or 'professional'
     const scrollRef = useRef(null);
 
     // Auto-scroll to bottom
@@ -27,11 +29,19 @@ const Dashboard = () => {
         setInput('');
         setIsTyping(true);
 
-        // Simulate AI delay
-        setTimeout(() => {
-            setMessages(prev => [...prev, { role: 'ai', text: MOCK_RESPONSE }]);
+        try {
+            // Get response from chatbot service
+            const response = await chatbotService.sendMessage(text, chatMode);
+            setMessages(prev => [...prev, { role: 'ai', text: response }]);
+        } catch (error) {
+            console.error('Error getting response:', error);
+            setMessages(prev => [...prev, { 
+                role: 'ai', 
+                text: "I'm having trouble responding right now. Please try again." 
+            }]);
+        } finally {
             setIsTyping(false);
-        }, 2000);
+        }
     };
 
     const handleSuggestionClick = (text) => {
@@ -51,9 +61,35 @@ const Dashboard = () => {
                     <Menu size={24} />
                 </button>
 
-                <div className="flex items-center gap-2">
-                    <span className="font-semibold bg-gradient-to-r from-teal-500 to-indigo-500 bg-clip-text text-transparent">Aura</span>
-                    <div className="px-2 py-0.5 rounded-md bg-teal-50 text-[10px] font-bold text-teal-600 border border-teal-100">AI</div>
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                        <span className="font-semibold bg-gradient-to-r from-teal-500 to-indigo-500 bg-clip-text text-transparent">Aura</span>
+                        <div className="px-2 py-0.5 rounded-md bg-teal-50 text-[10px] font-bold text-teal-600 border border-teal-100">AI</div>
+                    </div>
+                    
+                    {/* Mode Selector */}
+                    <div className="flex gap-1 bg-slate-100 rounded-full p-1">
+                        <button
+                            onClick={() => setChatMode('friend')}
+                            className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                                chatMode === 'friend' 
+                                    ? 'bg-teal-500 text-white shadow-sm' 
+                                    : 'text-slate-600 hover:bg-slate-200'
+                            }`}
+                        >
+                            Friend
+                        </button>
+                        <button
+                            onClick={() => setChatMode('professional')}
+                            className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                                chatMode === 'professional' 
+                                    ? 'bg-indigo-500 text-white shadow-sm' 
+                                    : 'text-slate-600 hover:bg-slate-200'
+                            }`}
+                        >
+                            Pro
+                        </button>
+                    </div>
                 </div>
 
                 <button className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 overflow-hidden border border-slate-100">

@@ -1,16 +1,32 @@
-# React + Vite
+﻿# AURA - Mental Health AI Chatbot
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A React-based mental health chatbot with AI-powered responses trained on mental health datasets.
 
-Currently, two official plugins are available:
+## Quick Start
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+**Terminal 1 - Backend:**
+```bash
+cd backend
+python app.py
+```
 
-## React Compiler
+**Terminal 2 - Frontend:**
+```bash
+npm run dev
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Visit http://localhost:5173
 
-## Expanding the ESLint configuration
+## Features
+-  AI-powered chatbot with Friend & Professional modes
+-  NLP-based understanding
+-  1000+ training patterns
+-  Modern React UI
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Training
+```bash
+cd backend
+python train_chatbot.py
+```
+
+ Not a substitute for professional mental health care.
