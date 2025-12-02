@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mental Health Resources - AURA</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <h1>🌟 AURA</h1>
+            <span class="tagline">Your Mental Health Companion</span>
+        </div>
+        <ul class="nav-links">
+            <li><a href="/">Home</a></li>
+            <li><a href="/assessment">Assessment</a></li>
+            <li><a href="/resources" class="active">Resources</a></li>
+        </ul>
+    </nav>
+
+    <main class="container">
+        <section class="resources-section">
+            <h2>📚 Mental Health Resources</h2>
+            <p class="section-subtitle">Explore coping strategies and resources to support your mental well-being.</p>
+
+            <div class="resources-grid">
+                {% for category, strategies in coping_strategies.items() %}
+                <div class="resource-card">
+                    <h3>
+                        {% if category == 'anxiety' %}
+                            😰 Managing Anxiety
+                        {% elif category == 'depression' %}
+                            💙 Coping with Depression
+                        {% elif category == 'stress' %}
+                            😤 Stress Relief
+                        {% else %}
+                            ✨ General Wellness
+                        {% endif %}
+                    </h3>
+                    <ul class="strategy-list">
+                        {% for strategy in strategies %}
+                        <li>{{ strategy }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="emergency-resources">
+            <h2>🆘 Emergency Resources</h2>
+            <p class="section-subtitle">If you or someone you know is in crisis, please reach out to these resources immediately.</p>
+            
+            <div class="emergency-grid">
+                <div class="emergency-card">
+                    <h3>📞 National Suicide Prevention Lifeline</h3>
+                    <p class="emergency-number">988</p>
+                    <p>Available 24/7 for emotional support</p>
+                </div>
+                <div class="emergency-card">
+                    <h3>💬 Crisis Text Line</h3>
+                    <p class="emergency-number">Text HOME to 741741</p>
+                    <p>Free, 24/7 support via text</p>
+                </div>
+                <div class="emergency-card">
+                    <h3>🌍 International Resources</h3>
+                    <p>Find crisis centers worldwide at:</p>
+                    <p><a href="https://www.iasp.info/resources/Crisis_Centres/" target="_blank">IASP Crisis Centres</a></p>
+                </div>
+                <div class="emergency-card">
+                    <h3>🏥 Emergency Services</h3>
+                    <p class="emergency-number">911</p>
+                    <p>For immediate emergencies in the US</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="wellness-tips">
+            <h2>🌈 Daily Wellness Tips</h2>
+            <div class="tips-grid">
+                <div class="tip-card">
+                    <div class="tip-icon">🧘</div>
+                    <h4>Practice Mindfulness</h4>
+                    <p>Take 5-10 minutes each day to practice mindfulness meditation. Focus on your breath and be present in the moment.</p>
+                </div>
+                <div class="tip-card">
+                    <div class="tip-icon">🚶</div>
+                    <h4>Stay Active</h4>
+                    <p>Regular physical activity can boost your mood. Even a 20-minute walk can make a difference.</p>
+                </div>
+                <div class="tip-card">
+                    <div class="tip-icon">😴</div>
+                    <h4>Prioritize Sleep</h4>
+                    <p>Aim for 7-9 hours of quality sleep. Good sleep hygiene is essential for mental health.</p>
+                </div>
+                <div class="tip-card">
+                    <div class="tip-icon">🤝</div>
+                    <h4>Connect with Others</h4>
+                    <p>Social connections are vital. Reach out to friends, family, or support groups regularly.</p>
+                </div>
+                <div class="tip-card">
+                    <div class="tip-icon">📝</div>
+                    <h4>Journal Your Thoughts</h4>
+                    <p>Writing can help process emotions. Try journaling for a few minutes each day.</p>
+                </div>
+                <div class="tip-card">
+                    <div class="tip-icon">🎯</div>
+                    <h4>Set Boundaries</h4>
+                    <p>It's okay to say no. Setting healthy boundaries protects your mental energy.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="crisis-notice">
+            <p><strong>🆘 In Crisis?</strong> If you're having thoughts of suicide or self-harm, please reach out:</p>
+            <p>National Suicide Prevention Lifeline: <strong>988</strong> | Crisis Text Line: Text <strong>HOME</strong> to <strong>741741</strong></p>
+        </div>
+        <p>&copy; 2024 AURA - Mental Health Support Application</p>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
