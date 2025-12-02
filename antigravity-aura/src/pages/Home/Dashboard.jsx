@@ -53,13 +53,14 @@ const Dashboard = () => {
             <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
             {/* --- Top Bar --- */}
-            <header className="flex items-center justify-between px-4 py-3 z-20 bg-white/80 backdrop-blur-md sticky top-0">
-                <button
-                    onClick={() => setIsSidebarOpen(true)}
-                    className="p-2 rounded-full hover:bg-slate-100 text-slate-600 transition-colors"
-                >
-                    <Menu size={24} />
-                </button>
+            <header className="flex flex-col z-20 bg-white/80 backdrop-blur-md sticky top-0">
+                <div className="flex items-center justify-between px-4 py-3">
+                    <button
+                        onClick={() => setIsSidebarOpen(true)}
+                        className="p-2 rounded-full hover:bg-slate-100 text-slate-600 transition-colors"
+                    >
+                        <Menu size={24} />
+                    </button>
 
                 <div className="flex items-center gap-3">
                     <div className="flex items-center gap-2">
@@ -92,9 +93,17 @@ const Dashboard = () => {
                     </div>
                 </div>
 
-                <button className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 overflow-hidden border border-slate-100">
-                    <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="Profile" className="w-full h-full object-cover" />
-                </button>
+                    <button className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 overflow-hidden border border-slate-100">
+                        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="Profile" className="w-full h-full object-cover" />
+                    </button>
+                </div>
+                
+                {/* AI Disclaimer Note */}
+                <div className="px-4 pb-2">
+                    <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700">
+                        <span className="font-semibold">Note:</span> I'm an AI assistant. While I'm here to support you, I'm not a substitute for professional help or human connection.
+                    </div>
+                </div>
             </header>
 
             {/* --- Main Content Area --- */}
