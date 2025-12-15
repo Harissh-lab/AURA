@@ -26,10 +26,20 @@ class ChatbotService {
 
       const data = await response.json();
       console.log('Received response:', data);
-      return data.response;
+      
+      // Return response with ML distress detection info
+      return {
+        text: data.response,
+        distressDetection: data.distress_detection || null,
+        source: data.source || 'unknown'
+      };
     } catch (error) {
       console.error('Chatbot service error:', error);
-      return "I'm having trouble connecting right now. Please try again.";
+      return {
+        text: "I'm having trouble connecting right now. Please try again.",
+        distressDetection: null,
+        source: 'error'
+      };
     }
   }
 

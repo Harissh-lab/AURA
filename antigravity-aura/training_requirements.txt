@@ -1,0 +1,13 @@
+# Additional dependencies for Intent Detection Training
+# Install: pip install -r training_requirements.txt
+
+# Core ML libraries
+transformers>=4.30.0
+datasets>=2.14.0
+torch>=2.0.0
+accelerate>=0.20.0
+
+# Already in project requirements.txt (for reference):
+# pandas
+# numpy
+# scikit-learn

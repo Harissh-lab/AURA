@@ -1,7 +1,7 @@
 import React from 'react';
-import { X, MessageSquare, Settings, History, LogOut } from 'lucide-react';
+import { X, MessageSquare, Settings, History, LogOut, AlertCircle } from 'lucide-react';
 
-const Sidebar = ({ isOpen, onClose }) => {
+const Sidebar = ({ isOpen, onClose, onNavigate }) => {
     return (
         <>
             {/* Backdrop */}
@@ -21,7 +21,18 @@ const Sidebar = ({ isOpen, onClose }) => {
                     </div>
 
                     <div className="space-y-2 flex-1">
-                        <div className="px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">Recent</div>
+                        <div className="px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">Menu</div>
+                        
+                        {/* SOS Button - Prominent */}
+                        <button 
+                            onClick={() => onNavigate('sos')}
+                            className="w-full flex items-center gap-3 px-3 py-3 bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white rounded-xl text-sm transition-all shadow-lg shadow-rose-500/30 font-semibold"
+                        >
+                            <AlertCircle size={20} />
+                            <span>Crisis Support (SOS)</span>
+                        </button>
+
+                        <div className="px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider mt-4">Recent</div>
                         <button className="w-full flex items-center gap-3 px-3 py-3 hover:bg-slate-200 rounded-xl text-slate-700 text-sm transition-colors text-left">
                             <MessageSquare size={18} />
                             <span className="truncate">Anxiety about upcoming presentation</span>
