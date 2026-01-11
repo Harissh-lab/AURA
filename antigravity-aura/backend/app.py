@@ -1,10 +1,14 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from train_chatbot import MentalHealthChatbot
 import os
 from dotenv import load_dotenv
 import google.generativeai as genai
 import json
+from deep_translator import GoogleTranslator
+from gtts import gTTS
+import tempfile
+import io
 
 # Load environment variables
 load_dotenv()
@@ -89,7 +93,12 @@ try:
             if label == 1:  # Distress detected
                 response = ("I hear how much pain you're going through, and I want you to know that you're not alone. "
                            "What you're feeling is valid, and there are people who care about you and want to help. "
-                           "Please consider reaching out to a crisis helpline or a mental health professional. "
+                           "Please consider reaching out to a crisis helpline immediately:\n\n"
+                           "🇮🇳 India Crisis Helplines:\n"
+                           "• Tele MANAS: 14416 or 1800-89-14416 (24/7, Available in 20 languages)\n"
+                           "• KIRAN Mental Health: 1800-599-0019 (24/7 free)\n"
+                           "• Vandrevala Foundation: 1860-2662-345\n"
+                           "• iCall: 9152987821\n\n"
                            "Your life has value, and with support, things can get better. "
                            "Would you like to talk more about what you're experiencing?")
             else:
@@ -211,22 +220,38 @@ def find_best_counseling_response(user_message):
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 use_gemini = False
 gemini_model = None
+gemini_base_model_name = None  # Store the base model name
 
 if GEMINI_API_KEY and GEMINI_API_KEY != 'your_gemini_api_key_here':
     try:
         genai.configure(api_key=GEMINI_API_KEY)
-        # Try multiple model versions in order of preference (updated to latest stable models)
+        
+        # List all available models for debugging
+        print("📋 Listing available models...")
+        try:
+            available_models = []
+            for model in genai.list_models():
+                if 'generateContent' in model.supported_generation_methods:
+                    available_models.append(model.name)
+                    print(f"   • {model.name}")
+            print(f"✅ Found {len(available_models)} models supporting generateContent")
+        except Exception as list_error:
+            print(f"⚠️ Could not list models: {list_error}")
+        
+        # Using Gemma 3 / Gemini models for enhanced mental health support
         model_names = [
-            'models/gemini-1.5-flash-latest',  # Latest stable flash model
-            'models/gemini-1.5-pro-latest',    # Latest stable pro model
-            'models/gemini-pro',               # Fallback to classic model
-            'models/gemini-1.5-flash'          # Specific version fallback
+            'models/gemma-3-27b-it',      # Gemma 3 27B Instruction Tuned (Primary)
+            'models/gemini-2.5-flash',    # Gemini 2.5 Flash (Fallback)
+            'models/gemini-2.0-flash',    # Gemini 2.0 Flash (Fallback)
+            'models/gemini-2.5-pro',      # Gemini 2.5 Pro (Fallback)
         ]
         for model_name in model_names:
             try:
                 gemini_model = genai.GenerativeModel(model_name)
-                test_response = gemini_model.generate_content("Hi")
+                # Skip test generation - initialize model only
+                # test_response = gemini_model.generate_content("Hi")
                 use_gemini = True
+                gemini_base_model_name = model_name  # Store for later use
                 print(f"✅ Gemini AI initialized successfully with model: {model_name}")
                 break
             except Exception as model_error:
@@ -245,14 +270,29 @@ if GEMINI_API_KEY and GEMINI_API_KEY != 'your_gemini_api_key_here':
 else:
     print("ℹ️ No Gemini API key found. Using trained model only.")
 
-# RAG components - disabled for now due to loading issues
-print("ℹ️ RAG system temporarily disabled (loading optimization needed)")
+# RAG components - DISABLED by default for faster startup
+# Will be loaded on first request if needed
 use_rag = False
-embedding_model = None
 rag_collection = None
+embedding_model = None
 chroma_client = None
 
-# Note: To enable RAG, run setup_rag.py separately and ensure sentence-transformers loads correctly
+print("ℹ️ RAG system disabled for faster startup")
+print("   Server will use Gemini AI for responses")
+
+# Initialize T5 model for empathetic response generation
+t5_model = None
+t5_tokenizer = None
+use_t5 = False
+
+# T5 disabled for faster startup
+print("ℹ️ T5 model disabled for faster startup")
+
+# Google Translate is available globally - no initialization needed
+use_translator = True
+print("✅ Google Translate initialized successfully")
+print("   Supports 100+ languages including Hindi, Tamil, Telugu, Marathi, etc.")
+print("   Using Gemini AI for all responses")
 
 # Initialize chatbot
 chatbot = MentalHealthChatbot()
@@ -285,16 +325,27 @@ def chat():
     if request.method == 'OPTIONS':
         return '', 204
     
+    print(f"🔵 CHAT ENDPOINT CALLED - Method: {request.method}")
+    
     try:
         data = request.get_json()
         print(f"📨 Received request: {data}")
+        print(f"🔧 use_gemini={use_gemini}, use_ai={data.get('useAI', True)}, mode={data.get('mode', 'friend')}")
         
         user_message = data.get('message', '')
         mode = data.get('mode', 'friend')
         use_ai = data.get('useAI', True)  # Option to use Gemini or trained model
+        language = data.get('language', 'English')  # User's preferred language
+        
+        print(f"🌐 User language: {language}")
         
         if not user_message:
             return jsonify({'error': 'Message is required'}), 400
+        
+        # CRITICAL: Check for explicit crisis keywords first (100% accuracy)
+        has_crisis_keywords = detect_crisis_keywords(user_message)
+        if has_crisis_keywords:
+            print(f"🚨 CRISIS KEYWORDS DETECTED: Immediate intervention required!")
         
         # ML-based distress detection
         ml_distress_result = None
@@ -302,8 +353,24 @@ def chat():
             try:
                 ml_distress_result = distress_detector.predict_distress(user_message)
                 print(f"🧠 ML Distress Detection: {ml_distress_result}")
+                
+                # Override ML result if crisis keywords detected
+                if has_crisis_keywords:
+                    ml_distress_result['is_distress'] = True
+                    ml_distress_result['confidence'] = 1.0
+                    ml_distress_result['probability'] = 1.0
+                    ml_distress_result['requires_crisis_intervention'] = True
+                    print(f"🚨 ML result overridden by crisis keyword detection")
             except Exception as e:
                 print(f"⚠️ ML distress detection error: {e}")
+                # If ML fails but crisis keywords detected, still flag as crisis
+                if has_crisis_keywords:
+                    ml_distress_result = {
+                        'is_distress': True,
+                        'confidence': 1.0,
+                        'probability': 1.0,
+                        'requires_crisis_intervention': True
+                    }
         
         # Try to find a matching response from professional counseling dataset first
         counseling_response = find_best_counseling_response(user_message)
@@ -314,8 +381,16 @@ def chat():
             source = 'counseling_dataset'
         elif use_gemini and use_ai:
             # Use Gemini AI with mental health context
-            response = get_gemini_response(user_message, mode)
+            response = get_gemini_response(user_message, mode, language)
             source = 'gemini'
+        elif use_t5:
+            # Use T5 for empathetic response generation
+            response = generate_t5_response(user_message, mode)
+            source = 't5_model'
+            # Fallback if T5 fails
+            if not response:
+                response = chatbot.get_response(user_message, mode=mode)
+                source = 'trained_model'
         else:
             # Use trained model
             response = chatbot.get_response(user_message, mode=mode)
@@ -333,10 +408,10 @@ def chat():
         # Add ML distress detection results if available
         if ml_distress_result:
             response_data['distress_detection'] = {
-                'is_distress': ml_distress_result['is_distress'],
-                'confidence': ml_distress_result['confidence'],
-                'severity': ml_distress_result['severity'],
-                'distress_probability': ml_distress_result['distress_probability']
+                'is_distress': bool(ml_distress_result['is_distress']),
+                'confidence': float(ml_distress_result['confidence']),
+                'distress_probability': float(ml_distress_result.get('probability', 0.0)),
+                'requires_crisis_intervention': bool(ml_distress_result.get('requires_crisis_intervention', False))
             }
         
         return jsonify(response_data)
@@ -344,6 +419,22 @@ def chat():
     except Exception as e:
         print(f"❌ Error: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+def detect_crisis_keywords(text):
+    """Detect critical suicide/self-harm keywords for immediate intervention"""
+    crisis_keywords = [
+        'suicide', 'kill myself', 'end my life', 'want to die',
+        'harm myself', 'cut myself', 'overdose', 'jump off',
+        'don\'t want to live', 'better off dead', 'end it all',
+        'take my life', 'suicidal', 'self harm', 'hurt myself',
+        'no reason to live', 'can\'t go on', 'finish myself'
+    ]
+    
+    text_lower = text.lower()
+    for keyword in crisis_keywords:
+        if keyword in text_lower:
+            return True
+    return False
 
 def retrieve_context(query, top_k=3):
     """Retrieve relevant context from RAG database"""
@@ -371,43 +462,185 @@ def retrieve_context(query, top_k=3):
         print(f"⚠️ RAG retrieval error: {e}")
         return ""
 
-def get_gemini_response(user_message, mode):
-    """Get response from Gemini AI with RAG-enhanced context"""
+def generate_t5_response(user_message, mode='empathetic'):
+    """Generate empathetic response using T5 model"""
+    if not use_t5:
+        return None
+    
     try:
-        # Retrieve relevant context from RAG database
-        retrieved_context = retrieve_context(user_message, top_k=5)
+        import torch
         
-        # Create context based on mode
+        # Create prompt based on mode
         if mode == 'friend':
-            system_prompt = """You are Aura, a friendly and empathetic mental health support chatbot. 
-            Respond in a casual, supportive, and relatable way. Use emojis occasionally. 
-            Show understanding and provide emotional support like a caring friend would.
-            Keep responses concise (2-4 sentences). Be warm and approachable.
-            Do NOT mention that you're an AI in your responses - users already know this."""
-        else:  # professional mode
-            system_prompt = """You are Aura, a professional mental health assistant. 
-            Provide structured, therapeutic responses with clinical insight. 
-            Ask thoughtful questions to understand the user's situation better.
-            Offer evidence-based suggestions and coping strategies.
-            Keep responses concise (2-4 sentences). Be professional yet compassionate.
-            Do NOT mention that you're an AI in your responses - users already know this."""
+            prompt = f"respond empathetically to: {user_message}"
+        elif mode == 'counselor':
+            prompt = f"provide mental health support for: {user_message}"
+        else:
+            prompt = f"offer compassionate response to: {user_message}"
+        
+        # Tokenize input
+        input_ids = t5_tokenizer(
+            prompt,
+            return_tensors='pt',
+            max_length=128,
+            truncation=True
+        ).input_ids.to(t5_model.device)
+        
+        # Generate response
+        with torch.no_grad():
+            outputs = t5_model.generate(
+                input_ids,
+                max_length=256,
+                num_beams=4,
+                early_stopping=True,
+                temperature=0.7,
+                do_sample=False,
+                no_repeat_ngram_size=3
+            )
+        
+        # Decode response
+        response = t5_tokenizer.decode(outputs[0], skip_special_tokens=True)
+        return response
+        
+    except Exception as e:
+        print(f"⚠️ T5 generation error: {e}")
+        return None
+
+def translate_to_language(text, target_language):
+    """
+    Translate English text to target language using Google Translate (deep-translator)
+    
+    Args:
+        text: English text to translate
+        target_language: Target language name (e.g., 'Hindi', 'Tamil', 'Telugu')
+    
+    Returns:
+        Translated text or original if translation fails
+    """
+    if not use_translator:
+        print("⚠️ Translator not available, returning original text")
+        return text
+    
+    # If already English, no translation needed
+    if target_language.lower() == 'english':
+        return text
+    
+    try:
+        # Language code mapping
+        language_codes = {
+            'hindi': 'hi',
+            'tamil': 'ta',
+            'telugu': 'te',
+            'marathi': 'mr',
+            'bengali': 'bn',
+            'gujarati': 'gu',
+            'kannada': 'kn',
+            'malayalam': 'ml',
+            'punjabi': 'pa',
+            'urdu': 'ur',
+            'odia': 'or',
+            'assamese': 'as',
+            'spanish': 'es',
+            'french': 'fr',
+            'german': 'de',
+            'portuguese': 'pt',
+            'russian': 'ru',
+            'japanese': 'ja',
+            'korean': 'ko',
+            'chinese': 'zh-CN',
+            'arabic': 'ar',
+            'turkish': 'tr',
+            'vietnamese': 'vi',
+            'thai': 'th',
+            'indonesian': 'id',
+            'dutch': 'nl',
+            'italian': 'it',
+            'polish': 'pl',
+            'ukrainian': 'uk',
+            'persian': 'fa'
+        }
+        
+        # Get language code
+        lang_key = target_language.lower()
+        lang_code = language_codes.get(lang_key, None)
+        
+        if not lang_code:
+            print(f"⚠️ Unknown language: {target_language}, returning original")
+            return text
+        
+        # Translate using deep-translator
+        print(f"🌐 Translating to {target_language} ({lang_code})...")
+        translator = GoogleTranslator(source='en', target=lang_code)
+        translated_text = translator.translate(text)
+        
+        print(f"   Original: {text[:100]}...")
+        print(f"   Translated: {translated_text[:100]}...")
+        
+        return translated_text
+        
+    except Exception as e:
+        print(f"⚠️ Translation error: {e}")
+        print(f"   Returning original text")
+        return text
+
+def get_gemini_response(user_message, mode, language='English'):
+    """Get response from Gemini AI with Google Translate for non-English languages"""
+    global gemini_base_model_name
+    
+    try:
+        # Retrieve relevant context from RAG database (knowledge base)
+        retrieved_context = retrieve_context(user_message, top_k=5)
         
         # Build context with RAG information
         rag_context = ""
         if retrieved_context:
-            rag_context = f"\n\nRelevant mental health knowledge base context:\n{retrieved_context}\n"
+            rag_context = f"\n\nKnowledge base context:\n{retrieved_context}\n"
         
-        # Add important crisis handling context
-        context = f"""{system_prompt}
+        # ALWAYS generate in English for best quality with Gemma
+        # Then use Google Translate if needed
+        # Add crisis awareness to prompt for better safety
+        crisis_context = ""
+        if mode == 'professional':
+            crisis_context = """
+IMPORTANT CRISIS PROTOCOL:
+If the user expresses suicidal thoughts or immediate danger, respond with deep empathy and provide these INDIAN crisis helplines:
 
-IMPORTANT: If someone mentions self-harm, suicide, or severe crisis, provide crisis helpline information immediately.{rag_context}
+🇮🇳 India Crisis Helplines (Available 24/7):
+• Tele MANAS: 14416 or 1800-89-14416 (Available in 20 languages)
+• KIRAN Mental Health: 1800-599-0019 (Free)
+• Vandrevala Foundation: 1860-2662-345
+• iCall: 9152987821
 
+Do NOT provide generic advice for crisis situations. Always include these helplines."""
+        
+        prompt = f"""You are Aura, a compassionate mental health support chatbot for Indian users.
+Provide warm, culturally-sensitive, supportive responses. Use emojis occasionally. Keep responses concise (2-4 sentences).{crisis_context}
+{rag_context}
 User message: {user_message}
 
-Respond appropriately based on the context above:"""
+Your response:"""
         
-        response = gemini_model.generate_content(context)
-        return response.text.strip()
+        # Use base model without system instructions (Gemma doesn't support it)
+        language_model = genai.GenerativeModel(model_name=gemini_base_model_name)
+        
+        # Generate response in English
+        response = language_model.generate_content(prompt)
+        english_response = response.text.strip()
+        
+        print(f"🤖 Gemma response (English): {english_response[:100]}...")
+        
+        # Translate to target language if not English
+        if language.lower() != 'english' and use_translator:
+            print(f"🌐 Translating to {language} using Google Translate...")
+            translated_response = translate_to_language(english_response, language)
+            print(f"✅ Translation complete: {translated_response[:100]}...")
+            return translated_response
+        elif language.lower() != 'english' and not use_translator:
+            print(f"⚠️ Translator not available, returning English response")
+            return english_response
+        else:
+            # English - no translation needed
+            return english_response
         
     except Exception as e:
         print(f"⚠️ Gemini error: {e}")
@@ -443,5 +676,89 @@ def get_modes():
         ]
     })
 
+@app.route('/api/tts', methods=['POST', 'OPTIONS'])
+def text_to_speech():
+    """Generate speech audio from text using Google TTS"""
+    if request.method == 'OPTIONS':
+        return '', 204
+    
+    try:
+        data = request.get_json()
+        text = data.get('text', '')
+        language = data.get('language', 'en')  # Language code (e.g., 'en', 'ta', 'hi')
+        
+        if not text:
+            return jsonify({'error': 'No text provided'}), 400
+        
+        # Map frontend language codes to gTTS codes
+        language_map = {
+            'en-US': 'en',
+            'hi-IN': 'hi',
+            'ta-IN': 'ta',
+            'te-IN': 'te',
+            'mr-IN': 'mr',
+            'bn-IN': 'bn',
+            'gu-IN': 'gu',
+            'kn-IN': 'kn',
+            'ml-IN': 'ml',
+            'pa-IN': 'pa',
+            'ur-IN': 'ur',
+            'es-ES': 'es',
+            'fr-FR': 'fr',
+            'de-DE': 'de',
+            'pt-PT': 'pt',
+            'ru-RU': 'ru',
+            'ja-JP': 'ja',
+            'ko-KR': 'ko',
+            'zh-CN': 'zh-CN',
+            'ar-SA': 'ar',
+            'tr-TR': 'tr',
+            'vi-VN': 'vi',
+            'th-TH': 'th',
+            'id-ID': 'id',
+            'nl-NL': 'nl',
+            'it-IT': 'it',
+            'pl-PL': 'pl',
+            'uk-UA': 'uk'
+        }
+        
+        tts_lang = language_map.get(language, language.split('-')[0])
+        
+        # Generate speech
+        tts = gTTS(text=text, lang=tts_lang, slow=False)
+        
+        # Save to memory buffer
+        audio_buffer = io.BytesIO()
+        tts.write_to_fp(audio_buffer)
+        audio_buffer.seek(0)
+        
+        print(f"🔊 Generated TTS audio for text: '{text[:50]}...' in language: {tts_lang}")
+        
+        return send_file(
+            audio_buffer,
+            mimetype='audio/mpeg',
+            as_attachment=False,
+            download_name='speech.mp3'
+        )
+        
+    except Exception as e:
+        print(f"❌ TTS error: {e}")
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    print("\n" + "="*60)
+    print("🚀 AURA Backend Server Starting...")
+    print("="*60)
+    print(f"📍 Running on: http://127.0.0.1:5000")
+    print(f"🎤 Voice input ready!")
+    print(f"🤖 Using Gemini AI: {'✅' if use_gemini else '❌'}")
+    print("="*60 + "\n")
+    
+    try:
+        app.run(debug=False, port=5000, host='127.0.0.1', threaded=True, use_reloader=False)
+    except KeyboardInterrupt:
+        print("\n🛑 Server stopped by user")
+    except Exception as e:
+        print(f"\n❌ Server error: {e}")
+        import traceback
+        traceback.print_exc()

@@ -1,0 +1,4 @@
+pandas>=1.1
+numpy
+sentence-transformers>=2.2.2 # optional, only needed for embeddings
+faiss-cpu # optional, only needed for building an index

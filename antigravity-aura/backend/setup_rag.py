@@ -42,90 +42,103 @@ def setup_vector_database():
     ids = []
     doc_id = 0
     
-    # Load intents.json
-    print("\n📖 Loading intents.json...")
-    with open('../intents.json', 'r', encoding='utf-8') as f:
-        intents_data = json.load(f)
+    # Load intents.json (if exists)
+    intents_path = '../intents.json'
+    if not os.path.exists(intents_path):
+        intents_path = 'intents.json'
     
-    for intent in intents_data['intents']:
-        tag = intent['tag']
-        patterns = intent['patterns']
-        responses = intent['responses']
+    if os.path.exists(intents_path):
+        print(f"\n📖 Loading intents from {intents_path}...")
+        try:
+            with open(intents_path, 'r', encoding='utf-8') as f:
+                intents_data = json.load(f)
+        except Exception as e:
+            print(f"⚠️ Could not load intents.json: {e}")
+            intents_data = None
+    else:
+        print("ℹ️ intents.json not found, skipping...")
+        intents_data = None
+    
+    if intents_data and 'intents' in intents_data:
+        for intent in intents_data['intents']:
+            tag = intent['tag']
+            patterns = intent.get('patterns', [])
+            responses = intent.get('responses', [])
+            
+            # Add each pattern as a document
+            for pattern in patterns:
+                documents.append(pattern)
+                metadatas.append({
+                    'source': 'intents',
+                    'tag': tag,
+                    'responses': '|||'.join(responses),  # Join responses with delimiter
+                    'type': 'pattern'
+                })
+                ids.append(f"intent_{doc_id}")
+                doc_id += 1
+            
+            # Add responses as documents too (for better context)
+            for response in responses:
+                documents.append(response)
+                metadatas.append({
+                    'source': 'intents',
+                    'tag': tag,
+                    'responses': response,
+                    'type': 'response'
+                })
+                ids.append(f"intent_{doc_id}")
+                doc_id += 1
         
-        # Add each pattern as a document
-        for pattern in patterns:
-            documents.append(pattern)
-            metadatas.append({
-                'source': 'intents',
-                'tag': tag,
-                'responses': '|||'.join(responses),  # Join responses with delimiter
-                'type': 'pattern'
-            })
-            ids.append(f"intent_{doc_id}")
-            doc_id += 1
-        
-        # Add responses as documents too (for better context)
-        for response in responses:
-            documents.append(response)
-            metadatas.append({
-                'source': 'intents',
-                'tag': tag,
-                'responses': response,
-                'type': 'response'
-            })
-            ids.append(f"intent_{doc_id}")
-            doc_id += 1
+        print(f"✅ Loaded {len([m for m in metadatas if m['source'] == 'intents'])} intent documents")
     
-    print(f"✅ Loaded {len([m for m in metadatas if m['source'] == 'intents'])} intent documents")
-    
-    # Load CSV data
-    print("\n📊 Loading CSV dataset...")
-    csv_path = '../Mental Health Chatbot Dataset - Friend mode and Professional mode Responses.csv'
+    # Load train_data.csv (distress classification data)
+    print("\n📊 Loading training dataset...")
+    csv_path = '../train_data.csv'
     if os.path.exists(csv_path):
         df = pd.read_csv(csv_path)
+        print(f"Found {len(df)} samples in training data")
         
-        for _, row in df.iterrows():
-            question = str(row.get('Questions', ''))
-            friend_response = str(row.get('Friend mode', ''))
-            pro_response = str(row.get('Professional mode', ''))
+        # Sample high-quality distress and non-distress examples for the knowledge base
+        distress_samples = df[df['label'] == 1].head(200)  # Top 200 distress examples
+        non_distress_samples = df[df['label'] == 0].head(200)  # Top 200 non-distress examples
+        
+        for _, row in pd.concat([distress_samples, non_distress_samples]).iterrows():
+            text = str(row.get('text', ''))
+            label = int(row.get('label', 0))
+            confidence = float(row.get('confidence', 0.5))
             
-            if question and question != 'nan':
-                # Add question
-                documents.append(question)
+            if text and text != 'nan' and len(text) > 20:
+                # Add text with appropriate mental health context
+                documents.append(text)
+                
+                # Create response based on distress level
+                if label == 1:
+                    response = ("I hear that you're going through something really difficult right now. "
+                              "Your feelings are valid and you don't have to face this alone. "
+                              "Please consider reaching out to a crisis helpline or mental health professional. "
+                              "Would you like to talk more about what you're experiencing?")
+                    category = 'crisis'
+                else:
+                    response = ("Thank you for sharing. I'm here to listen and support you. "
+                              "It sounds like you're dealing with something challenging. "
+                              "Remember that seeking help is a sign of strength. "
+                              "Would you like to explore some coping strategies?")
+                    category = 'support'
+                
                 metadatas.append({
-                    'source': 'csv',
-                    'friend_response': friend_response,
-                    'pro_response': pro_response,
-                    'type': 'question'
+                    'source': 'training_data',
+                    'label': str(label),
+                    'confidence': str(confidence),
+                    'category': category,
+                    'response': response,
+                    'type': 'example'
                 })
-                ids.append(f"csv_{doc_id}")
+                ids.append(f"train_{doc_id}")
                 doc_id += 1
-                
-                # Add friend response
-                if friend_response and friend_response != 'nan':
-                    documents.append(friend_response)
-                    metadatas.append({
-                        'source': 'csv',
-                        'mode': 'friend',
-                        'question': question,
-                        'type': 'response'
-                    })
-                    ids.append(f"csv_{doc_id}")
-                    doc_id += 1
-                
-                # Add professional response
-                if pro_response and pro_response != 'nan':
-                    documents.append(pro_response)
-                    metadatas.append({
-                        'source': 'csv',
-                        'mode': 'professional',
-                        'question': question,
-                        'type': 'response'
-                    })
-                    ids.append(f"csv_{doc_id}")
-                    doc_id += 1
         
-        print(f"✅ Loaded {len([m for m in metadatas if m['source'] == 'csv'])} CSV documents")
+        print(f"✅ Loaded {len([m for m in metadatas if m['source'] == 'training_data'])} training data documents")
+    else:
+        print(f"⚠️ Training data not found at {csv_path}")
     
     # Generate embeddings
     print(f"\n🧠 Generating embeddings for {len(documents)} documents...")

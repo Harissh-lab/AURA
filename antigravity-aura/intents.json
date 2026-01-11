@@ -1,0 +1,43 @@
+{
+  "intents": [
+    {
+      "tag": "greeting",
+      "patterns": [
+        "Hi", "Hello", "Hey", "Good morning", "Good afternoon", "Good evening"
+      ],
+      "responses": [
+        "Hello! I'm here to listen and support you. How are you feeling today?",
+        "Hi there! I'm Aura, and I'm here for you. What's on your mind?"
+      ]
+    },
+    {
+      "tag": "goodbye",
+      "patterns": [
+        "Bye", "Goodbye", "See you later", "Talk to you later", "I have to go"
+      ],
+      "responses": [
+        "Take care! Remember, I'm always here when you need to talk.",
+        "Goodbye! Don't hesitate to reach out anytime you need support."
+      ]
+    },
+    {
+      "tag": "thanks",
+      "patterns": [
+        "Thank you", "Thanks", "I appreciate it", "That helps"
+      ],
+      "responses": [
+        "You're welcome! I'm glad I could help. How else can I support you?",
+        "I'm here for you anytime. Feel free to reach out whenever you need."
+      ]
+    },
+    {
+      "tag": "crisis",
+      "patterns": [
+        "I want to die", "I want to kill myself", "Suicide", "End it all", "I can't go on"
+      ],
+      "responses": [
+        "I'm really concerned about you. Please reach out to a crisis helpline immediately: National Suicide Prevention Lifeline: 988 or 1-800-273-8255. You don't have to go through this alone."
+      ]
+    }
+  ]
+}
