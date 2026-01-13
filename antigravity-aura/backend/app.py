@@ -342,35 +342,51 @@ def chat():
         if not user_message:
             return jsonify({'error': 'Message is required'}), 400
         
-        # CRITICAL: Check for explicit crisis keywords first (100% accuracy)
-        has_crisis_keywords = detect_crisis_keywords(user_message)
-        if has_crisis_keywords:
-            print(f"🚨 CRISIS KEYWORDS DETECTED: Immediate intervention required!")
+        # HYBRID Crisis Detection: ML Model (primary) + Keywords (backup)
+        # ML model has 78.85% accuracy, keywords expanded to catch paraphrased language
         
-        # ML-based distress detection
+        # Step 1: ML-based distress detection (PRIMARY)
         ml_distress_result = None
+        ml_detected_crisis = False
+        
         if distress_detector:
             try:
                 ml_distress_result = distress_detector.predict_distress(user_message)
                 print(f"🧠 ML Distress Detection: {ml_distress_result}")
+                ml_detected_crisis = ml_distress_result.get('is_distress', False)
                 
-                # Override ML result if crisis keywords detected
-                if has_crisis_keywords:
-                    ml_distress_result['is_distress'] = True
-                    ml_distress_result['confidence'] = 1.0
-                    ml_distress_result['probability'] = 1.0
-                    ml_distress_result['requires_crisis_intervention'] = True
-                    print(f"🚨 ML result overridden by crisis keyword detection")
+                if ml_detected_crisis:
+                    print(f"🚨 ML MODEL DETECTED CRISIS (confidence: {ml_distress_result.get('confidence', 0):.2%})")
             except Exception as e:
                 print(f"⚠️ ML distress detection error: {e}")
-                # If ML fails but crisis keywords detected, still flag as crisis
-                if has_crisis_keywords:
-                    ml_distress_result = {
-                        'is_distress': True,
-                        'confidence': 1.0,
-                        'probability': 1.0,
-                        'requires_crisis_intervention': True
-                    }
+        
+        # Step 2: Keyword-based detection (BACKUP)
+        has_crisis_keywords = detect_crisis_keywords(user_message)
+        if has_crisis_keywords:
+            print(f"🚨 CRISIS KEYWORDS DETECTED: Immediate intervention required!")
+        
+        # Step 3: UNION approach - flag as crisis if EITHER detector triggers
+        is_crisis = ml_detected_crisis or has_crisis_keywords
+        
+        if is_crisis:
+            # Ensure crisis intervention is flagged
+            if ml_distress_result:
+                ml_distress_result['is_distress'] = True
+                ml_distress_result['requires_crisis_intervention'] = True
+                # Boost confidence if keywords also matched
+                if has_crisis_keywords and ml_distress_result.get('confidence', 0) < 0.95:
+                    ml_distress_result['confidence'] = 0.95
+                    ml_distress_result['probability'] = 0.95
+                    print(f"✅ Crisis confirmed by BOTH ML and keywords (high confidence)")
+            else:
+                # ML not available, create result from keywords
+                ml_distress_result = {
+                    'is_distress': True,
+                    'confidence': 0.90,  # High but not 100% (keywords can have false positives)
+                    'probability': 0.90,
+                    'requires_crisis_intervention': True
+                }
+                print(f"✅ Crisis detected by keywords (ML unavailable)")
         
         # Try to find a matching response from professional counseling dataset first
         counseling_response = find_best_counseling_response(user_message)
@@ -421,13 +437,47 @@ def chat():
         return jsonify({'error': str(e)}), 500
 
 def detect_crisis_keywords(text):
-    """Detect critical suicide/self-harm keywords for immediate intervention"""
+    """Detect critical suicide/self-harm keywords for immediate intervention
+    
+    EXPANDED keyword list based on real-world crisis language patterns.
+    Includes direct mentions, euphemisms, and paraphrased expressions.
+    """
     crisis_keywords = [
-        'suicide', 'kill myself', 'end my life', 'want to die',
-        'harm myself', 'cut myself', 'overdose', 'jump off',
-        'don\'t want to live', 'better off dead', 'end it all',
-        'take my life', 'suicidal', 'self harm', 'hurt myself',
-        'no reason to live', 'can\'t go on', 'finish myself'
+        # Direct suicide mentions
+        'suicide', 'suicidal', 'kill myself', 'killing myself',
+        'end my life', 'ending my life', 'take my life', 'taking my life',
+        
+        # Death wishes
+        'want to die', 'wanna die', 'wish i was dead', 'wish i were dead',
+        'better off dead', 'want to be dead', 'don\'t want to live',
+        'no reason to live', 'not worth living', 'life isn\'t worth',
+        
+        # Ending/finishing expressions
+        'end it all', 'end this', 'finish myself', 'finish it',
+        'can\'t go on', 'cannot go on', 'give up on life',
+        
+        # Self-harm
+        'harm myself', 'hurt myself', 'cut myself', 'cutting myself',
+        'self harm', 'self-harm', 'self injury',
+        
+        # Crisis methods
+        'overdose', 'jump off', 'hang myself', 'hanging myself',
+        'shoot myself', 'drown myself', 'pills',
+        
+        # Hopelessness (paraphrased crisis language)
+        'no way out', 'no escape', 'trapped', 'no hope',
+        'hopeless', 'helpless', 'no point in living',
+        'don\'t see a point', 'no point anymore', 'pointless',
+        
+        # Pain/suffering expressions
+        'can\'t take this', 'cannot take this', 'can\'t take it',
+        'too much pain', 'unbearable', 'can\'t bear',
+        'want it to stop', 'make it stop', 'end the pain',
+        
+        # Finality expressions  
+        'saying goodbye', 'final goodbye', 'won\'t be here',
+        'better without me', 'burden', 'everyone would be better',
+        'disappear forever', 'cease to exist', 'stop existing'
     ]
     
     text_lower = text.lower()

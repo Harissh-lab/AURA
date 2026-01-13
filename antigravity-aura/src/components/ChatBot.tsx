@@ -7,6 +7,7 @@ import { analyzeEmotion, saveMoodEntry, saveSessionEntry } from '../services/emo
 import { textToSpeechService, getTTSLanguageCode } from '../services/textToSpeechService';
 import { triggerCrisisAlert, callCrisisHelpline, callEmergencyContact, type EmergencyContact } from '../services/emergencyAlertService';
 import { getCurrentUser } from '../services/authService';
+import { EmergencyCallingScreen } from './EmergencyCallingScreen';
 
 interface ChatBotProps {
   onBack: () => void;
@@ -27,6 +28,7 @@ export function ChatBot({ onBack, onNavigateToSOS }: ChatBotProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [isEncrypted] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [chatMode, setChatMode] = useState<'friend' | 'professional'>('friend');
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showLanguageSelector, setShowLanguageSelector] = useState(false);
@@ -39,7 +41,9 @@ export function ChatBot({ onBack, onNavigateToSOS }: ChatBotProps) {
   const [showCrisisModal, setShowCrisisModal] = useState(false);
   const [crisisEmergencyContacts, setCrisisEmergencyContacts] = useState<EmergencyContact[]>([]);
   const [showSOSCountdown, setShowSOSCountdown] = useState(false);
-  const [sosCountdown, setSOSCountdown] = useState(3);
+  const [sosCountdown, setSOSCountdown] = useState(2);
+  const [showEmergencyCallingScreen, setShowEmergencyCallingScreen] = useState(false);
+  const [crisisDetectionData, setCrisisDetectionData] = useState<{confidence: number; probability: number} | null>(null);
   const [showLanguageSetup, setShowLanguageSetup] = useState(() => {
     // Check if language was previously selected
     const savedLanguage = localStorage.getItem('aura_preferred_language');
@@ -192,21 +196,41 @@ export function ChatBot({ onBack, onNavigateToSOS }: ChatBotProps) {
     }
 
     try {
-      // Call the backend API with selected language
+      // Call the backend API with selected language and chat mode
       const languageForBackend = getLanguageForBackend(selectedLanguage);
       console.log(`🌐 Sending message in language: ${languageForBackend} (${selectedLanguage})`);
-      const response = await sendMessageToBackend(messageText, 'friend', languageForBackend);
+      console.log(`💬 Using chat mode: ${chatMode}`);
+      const response = await sendMessageToBackend(messageText, chatMode, languageForBackend);
 
       // CRITICAL: Check for crisis intervention BEFORE showing any response
       const requiresCrisisIntervention = response.distress_detection?.requires_crisis_intervention || false;
       
       if (requiresCrisisIntervention) {
-        console.log('🚨 CRISIS DETECTED - Showing crisis message and redirecting to SOS page');
+        console.log('🚨 CRISIS DETECTED - Emergency protocols activated');
+        console.log(`📊 Distress Detection (Random Forest Model):
+          - Confidence: ${(response.distress_detection.confidence * 100).toFixed(1)}%
+          - Probability: ${(response.distress_detection.distress_probability * 100).toFixed(1)}%
+          - Crisis Intervention Required: YES`);
+        
+        // Show crisis countdown modal
+        setShowSOSCountdown(true);
+        setSOSCountdown(2);
+        
+        // Countdown timer (2 seconds)
+        const countdownInterval = setInterval(() => {
+          setSOSCountdown((prev) => {
+            if (prev <= 1) {
+              clearInterval(countdownInterval);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
         
         // Create comprehensive crisis alert message
         const crisisAlertMessage: Message = {
           id: (Date.now() + 1).toString(),
-          text: "🚨 **CRISIS ALERT ACTIVATED**\n\nI've detected that you may be in immediate danger. Your safety is my top priority.\n\n**Action Taken:**\n• Emergency support resources are being prepared\n• Redirecting you to the SOS Emergency Support page\n• Crisis intervention protocols activated\n\n**You are not alone. Help is available 24/7.**\n\n🇮🇳 **India Crisis Helplines:**\n• Tele MANAS: 14416 (Free, 24/7, 20+ languages)\n• KIRAN: 1800-599-0019\n• Vandrevala Foundation: 1860-2662-345",
+          text: "🚨 **EMERGENCY CRISIS DETECTED**\n\n⚠️ **AI Analysis (Random Forest Model):**\n• Distress Level: CRITICAL\n• Confidence: " + (response.distress_detection.confidence * 100).toFixed(1) + "%\n• Immediate intervention required\n\n**Emergency Actions Taken:**\n✓ SOS emergency call triggered\n✓ Redirecting to Emergency Support (2 sec)\n✓ Crisis helplines prepared\n✓ Emergency contacts notified\n\n**You are NOT alone. Help is available NOW.**\n\n🇮🇳 **IMMEDIATE HELP - India:**\n• Tele MANAS: 14416 (Free, 24/7)\n• KIRAN: 1800-599-0019\n• Vandrevala: 1860-2662-345",
           sender: 'bot',
           timestamp: new Date(),
           isDistress: true
@@ -235,17 +259,24 @@ export function ChatBot({ onBack, onNavigateToSOS }: ChatBotProps) {
                 probability: response.distress_detection.distress_probability
               }
             );
-            console.log('✅ Crisis alert triggered successfully');
+            console.log('✅ Crisis alert triggered - Emergency contacts notified');
           } catch (error) {
             console.error('❌ Error triggering crisis alert:', error);
           }
         }
         
-        // Redirect to SOS page after message is saved
+        // Store detection data for calling screen
+        setCrisisDetectionData({
+          confidence: response.distress_detection.confidence,
+          probability: response.distress_detection.distress_probability
+        });
+        
+        // Show Emergency Calling Screen after 2 seconds countdown
         setTimeout(() => {
-          console.log('🔄 Redirecting to SOS page...');
-          onNavigateToSOS?.();
-        }, 2500); // 2.5 seconds to ensure message is visible and saved
+          console.log('🔄 Opening Emergency Calling Screen...');
+          setShowSOSCountdown(false);
+          setShowEmergencyCallingScreen(true);
+        }, 2000); // 2 seconds - emergency trigger
         
         setIsLoading(false);
         return; // Stop here, don't show bot response
@@ -551,6 +582,36 @@ export function ChatBot({ onBack, onNavigateToSOS }: ChatBotProps) {
                   <span>{autoPlayTTS ? 'Auto-play ON' : 'Auto-play OFF'}</span>
                 </button>
               )}
+              
+              {/* Chat Mode Toggle */}
+              <div className="flex items-center gap-2 bg-white rounded-full p-1 shadow-sm border border-gray-200">
+                <button
+                  onClick={() => setChatMode('friend')}
+                  className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm transition-all ${
+                    chatMode === 'friend'
+                      ? 'bg-gradient-to-r from-purple-500 to-pink-500 shadow-md font-bold scale-105'
+                      : 'text-gray-600 hover:bg-gray-100 font-medium'
+                  }`}
+                  style={chatMode === 'friend' ? { color: '#ffffff' } : {}}
+                  title="Casual, friendly conversation"
+                >
+                  {chatMode === 'friend' && <Check className="w-4 h-4" />}
+                  😊 Friend
+                </button>
+                <button
+                  onClick={() => setChatMode('professional')}
+                  className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm transition-all ${
+                    chatMode === 'professional'
+                      ? 'bg-gradient-to-r from-blue-500 to-cyan-500 shadow-md font-bold scale-105'
+                      : 'text-gray-600 hover:bg-gray-100 font-medium'
+                  }`}
+                  style={chatMode === 'professional' ? { color: '#ffffff' } : {}}
+                  title="Professional therapeutic guidance"
+                >
+                  {chatMode === 'professional' && <Check className="w-4 h-4" />}
+                  👔 Professional
+                </button>
+              </div>
               
               <div className="flex items-center gap-2 text-green-600 bg-green-50 px-3 py-1 rounded-full">
                 <Shield className="w-4 h-4" />
@@ -904,61 +965,72 @@ export function ChatBot({ onBack, onNavigateToSOS }: ChatBotProps) {
         </div>
       </div>
       
-      {/* SOS Countdown Modal */}
+      {/* SOS Countdown Modal - Emergency Crisis Detection */}
       {showSOSCountdown && (
-        <div className="fixed inset-0 bg-black bg-opacity-90 z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden">
+        <div className="fixed inset-0 bg-black bg-opacity-95 z-[100] flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden animate-scale-in">
             {/* Header */}
-            <div className="bg-gradient-to-r from-red-500 to-red-600 p-6 text-white text-center">
-              <div className="flex items-center justify-center gap-3 mb-4">
-                <AlertTriangle className="w-12 h-12 animate-bounce" />
+            <div className="bg-gradient-to-r from-red-600 to-red-700 p-8 text-white text-center relative overflow-hidden">
+              {/* Animated Background Pulse */}
+              <div className="absolute inset-0 bg-red-500 animate-pulse opacity-30"></div>
+              
+              <div className="relative z-10">
+                <div className="flex items-center justify-center gap-3 mb-4">
+                  <AlertTriangle className="w-16 h-16 animate-bounce drop-shadow-lg" />
+                </div>
+                <h2 className="text-3xl font-black uppercase tracking-wide">⚠️ EMERGENCY ALERT</h2>
+                <p className="text-red-100 mt-3 text-lg font-semibold">Crisis Detected by AI (Random Forest Model)</p>
+                <div className="mt-4 bg-white/20 backdrop-blur-sm rounded-lg p-3">
+                  <p className="text-sm font-medium">🤖 AI Analysis Complete</p>
+                  <p className="text-xs text-red-50 mt-1">High-risk content identified • Immediate intervention required</p>
+                </div>
               </div>
-              <h2 className="text-2xl font-bold">🚨 Crisis Detected</h2>
-              <p className="text-red-100 mt-2">Redirecting to Emergency SOS Page</p>
             </div>
             
             {/* Countdown */}
-            <div className="p-12 text-center">
-              <div className="relative w-48 h-48 mx-auto">
+            <div className="p-12 text-center bg-gradient-to-b from-white to-red-50">
+              <p className="text-xl font-bold text-gray-800 mb-6">Activating Emergency Support</p>
+              <div className="relative w-56 h-56 mx-auto">
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-8xl font-bold text-red-500 animate-pulse">
+                  <div className="text-9xl font-black text-red-600 animate-pulse drop-shadow-2xl">
                     {sosCountdown}
                   </div>
                 </div>
                 <svg className="w-full h-full transform -rotate-90">
                   <circle
-                    cx="96"
-                    cy="96"
-                    r="88"
+                    cx="112"
+                    cy="112"
+                    r="100"
                     stroke="#fee2e2"
-                    strokeWidth="8"
+                    strokeWidth="12"
                     fill="none"
                   />
                   <circle
-                    cx="96"
-                    cy="96"
-                    r="88"
-                    stroke="#ef4444"
-                    strokeWidth="8"
+                    cx="112"
+                    cy="112"
+                    r="100"
+                    stroke="#dc2626"
+                    strokeWidth="12"
                     fill="none"
-                    strokeDasharray="552.92"
-                    strokeDashoffset={552.92 * (1 - (3 - sosCountdown) / 3)}
+                    strokeDasharray="628.32"
+                    strokeDashoffset={628.32 * (sosCountdown / 2)}
                     className="transition-all duration-1000 ease-linear"
                     strokeLinecap="round"
                   />
                 </svg>
               </div>
-              <p className="text-gray-600 mt-6 text-lg">
-                Emergency help is available now
+              <p className="text-gray-700 mt-8 text-lg font-semibold">
+                🚑 Emergency protocols activated
               </p>
+              <p className="text-sm text-gray-600 mt-2">You are not alone. Help is coming.</p>
               <button
                 onClick={() => {
                   setShowSOSCountdown(false);
                   onNavigateToSOS?.();
                 }}
-                className="mt-4 px-6 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl transition-all"
+                className="mt-6 px-8 py-4 bg-red-600 hover:bg-red-700 text-white font-bold text-lg rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:scale-105"
               >
-                Go to SOS Page Now
+                🆘 Go to Emergency SOS Now
               </button>
             </div>
           </div>
@@ -1056,6 +1128,14 @@ export function ChatBot({ onBack, onNavigateToSOS }: ChatBotProps) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Emergency Calling Screen */}
+      {showEmergencyCallingScreen && (
+        <EmergencyCallingScreen
+          onClose={() => setShowEmergencyCallingScreen(false)}
+          detectionData={crisisDetectionData || undefined}
+        />
       )}
     </div>
   );
