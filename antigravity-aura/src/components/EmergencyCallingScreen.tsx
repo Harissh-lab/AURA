@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Phone, AlertTriangle, Heart, Shield, X, Volume2, User } from 'lucide-react';
 import { getCurrentUser } from '../services/authService';
 import { getUserEmergencyData, callCrisisHelpline, callEmergencyContact, type EmergencyContact } from '../services/emergencyAlertService';
@@ -121,128 +122,144 @@ export function EmergencyCallingScreen({ onClose, detectionData }: EmergencyCall
     { name: 'iCall Helpline', number: '9152987821', description: 'Mon-Sat 8 AM - 10 PM' },
   ];
 
-  return (
-    <div className="fixed inset-0 bg-gradient-to-br from-red-600 via-red-700 to-red-800 z-[200] flex flex-col">
+  const content = (
+    <div className="fixed inset-0 bg-gradient-to-br from-red-500 to-red-700 z-[9999] flex items-center justify-center overflow-hidden">
+      {/* Background Pattern */}
+      <div className="absolute inset-0 opacity-10">
+        <div className="absolute inset-0" style={{ 
+          backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)',
+          backgroundSize: '50px 50px'
+        }}></div>
+      </div>
+
       {/* Close Button */}
       <button
         onClick={onClose}
-        className="absolute top-4 right-4 p-3 bg-white/20 hover:bg-white/30 rounded-full text-white transition-all z-10"
+        className="absolute top-6 right-6 p-4 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all z-20 backdrop-blur-sm"
+        aria-label="Close emergency screen"
       >
         <X className="w-6 h-6" />
       </button>
 
-      {/* AI Detection Badge */}
-      {detectionData && (
-        <div className="absolute top-4 left-4 bg-white/20 backdrop-blur-sm rounded-2xl px-4 py-2 text-white z-10">
-          <p className="text-xs font-semibold">🤖 AI Crisis Detection</p>
-          <p className="text-sm">Confidence: {(detectionData.confidence * 100).toFixed(0)}%</p>
-        </div>
-      )}
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-8">
+      {/* Main Content Container */}
+      <div className="relative z-10 w-full max-w-lg mx-auto px-6">
         {!activeCall ? (
-          // Connecting/Loading State (shows while auto-calling is being initiated)
-          <div className="text-center animate-fade-in">
+          // Connecting State
+          <div className="bg-white rounded-3xl shadow-2xl p-12 text-center">
             <div className="mb-8">
-              <div className="w-48 h-48 mx-auto bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center relative">
-                <div className="absolute inset-0 bg-white rounded-full animate-ping opacity-20"></div>
-                <Phone className="w-24 h-24 text-white drop-shadow-2xl animate-pulse" />
+              <div className="w-32 h-32 mx-auto bg-red-100 rounded-full flex items-center justify-center relative">
+                <div className="absolute inset-0 bg-red-500 rounded-full animate-ping opacity-20"></div>
+                <Phone className="w-16 h-16 text-red-600 animate-pulse" />
               </div>
             </div>
 
-            <h2 className="text-4xl font-black text-white mb-4 drop-shadow-lg">
-              🚨 CONNECTING TO HELP
+            <div className="mb-6">
+              <div className="inline-flex items-center gap-2 bg-red-100 text-red-800 px-4 py-2 rounded-full text-sm font-semibold mb-4">
+                <AlertTriangle className="w-4 h-4" />
+                EMERGENCY MODE ACTIVE
+              </div>
+            </div>
+
+            <h2 className="text-3xl font-bold text-gray-900 mb-3">
+              Connecting to Help
             </h2>
-            <p className="text-2xl text-white/90 font-semibold mb-8">
-              Auto-dialing emergency contact...
+            <p className="text-lg text-gray-600 mb-8">
+              {emergencyContacts.length > 0 
+                ? `Calling ${emergencyContacts[0].name}...` 
+                : 'Calling Tele MANAS Crisis Helpline...'}
             </p>
             
-            <div className="flex items-center justify-center gap-3 mb-8">
-              <div className="w-3 h-3 bg-white rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-              <div className="w-3 h-3 bg-white rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-              <div className="w-3 h-3 bg-white rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+            <div className="flex items-center justify-center gap-2 mb-8">
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
             </div>
 
-            <div className="bg-white/20 backdrop-blur-sm rounded-2xl px-8 py-4 max-w-md mx-auto">
-              <p className="text-white text-lg font-semibold mb-2">
-                📞 Priority Call System Active
-              </p>
-              <p className="text-white/80 text-sm">
-                {emergencyContacts.length > 0 
-                  ? `Calling: ${emergencyContacts[0].name}` 
-                  : 'Calling: Tele MANAS Crisis Helpline'}
-              </p>
-            </div>
+            {detectionData && (
+              <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-600">
+                <div className="flex items-center justify-center gap-2 mb-1">
+                  <Shield className="w-4 h-4 text-gray-500" />
+                  <span className="font-semibold">AI Crisis Detection</span>
+                </div>
+                <p>Confidence: {(detectionData.confidence * 100).toFixed(0)}%</p>
+              </div>
+            )}
           </div>
         ) : (
-          // Active Call UI
-          <div className="text-center animate-scale-in w-full max-w-2xl">
+          // Active Call State
+          <div className="bg-white rounded-3xl shadow-2xl p-12 text-center">
             <div className="mb-8">
-              <div className="w-48 h-48 mx-auto bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center relative">
+              <div className="w-32 h-32 mx-auto bg-green-100 rounded-full flex items-center justify-center relative">
                 <div className="absolute inset-0 bg-green-500 rounded-full animate-ping opacity-20"></div>
-                <Phone className="w-24 h-24 text-white drop-shadow-2xl animate-pulse" />
+                <Phone className="w-16 h-16 text-green-600" />
               </div>
             </div>
 
-            <h2 className="text-3xl font-bold text-white mb-2">📞 Connected</h2>
-            <p className="text-2xl text-white/90 font-semibold mb-4">{activeCall}</p>
-            
-            <div className="text-6xl font-black text-white mb-8 drop-shadow-lg">
+            <div className="mb-6">
+              <div className="inline-flex items-center gap-2 bg-green-100 text-green-800 px-4 py-2 rounded-full text-sm font-semibold mb-4">
+                <Volume2 className="w-4 h-4" />
+                CALL IN PROGRESS
+              </div>
+            </div>
+
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">{activeCall}</h2>
+            <div className="text-5xl font-bold text-gray-900 mb-8 tabular-nums">
               {formatDuration(callDuration)}
-            </div>
-
-            <div className="flex items-center justify-center gap-4 mb-8">
-              <div className="flex items-center gap-2 bg-green-500/30 backdrop-blur-sm rounded-full px-6 py-3 text-white border-2 border-green-400">
-                <Volume2 className="w-5 h-5" />
-                <span className="font-semibold">Line Active</span>
-              </div>
-              <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-6 py-3 text-white">
-                <Shield className="w-5 h-5" />
-                <span className="font-semibold">Encrypted</span>
-              </div>
             </div>
 
             <button
               onClick={handleEndCall}
-              className="w-20 h-20 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center shadow-2xl transition-all transform hover:scale-110 mx-auto"
+              className="w-20 h-20 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center shadow-lg transition-all transform hover:scale-105 mx-auto mb-8"
             >
-              <X className="w-10 h-10 text-white" />
+              <Phone className="w-8 h-8 text-white transform rotate-135" />
             </button>
-            <p className="text-white mt-4 font-semibold">End Call</p>
 
-            {/* Alternative Call Options During Active Call */}
-            <div className="mt-12 pt-8 border-t border-white/20">
-              <p className="text-white/80 text-sm mb-4">Need to call someone else?</p>
+            <div className="bg-gray-50 rounded-xl p-4">
+              <div className="flex items-center justify-center gap-4 text-xs text-gray-600">
+                <div className="flex items-center gap-1">
+                  <Shield className="w-3 h-3" />
+                  <span>End-to-End Encrypted</span>
+                </div>
+                <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
+                <div className="flex items-center gap-1">
+                  <Heart className="w-3 h-3" />
+                  <span>Confidential</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Access to Other Helplines */}
+            <div className="mt-8 pt-6 border-t border-gray-200">
+              <p className="text-sm text-gray-500 mb-4">Other helplines available</p>
               <div className="grid grid-cols-2 gap-3">
-                {crisisHelplines.slice(0, 2).map((helpline) => (
+                {crisisHelplines.filter(h => h.name !== activeCall).slice(0, 2).map((helpline) => (
                   <button
                     key={helpline.number}
                     onClick={() => {
                       handleEndCall();
                       setTimeout(() => handleCallHelpline(helpline), 500);
                     }}
-                    className="bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-xl p-3 text-white transition-all text-sm"
+                    className="bg-gray-100 hover:bg-gray-200 rounded-xl p-3 text-left transition-all"
                   >
-                    <Phone className="w-4 h-4 mx-auto mb-1" />
-                    <div className="font-semibold">{helpline.name}</div>
-                    <div className="text-xs text-white/70">{helpline.number}</div>
+                    <div className="text-xs font-semibold text-gray-900">{helpline.name}</div>
+                    <div className="text-xs text-gray-500 mt-1">{helpline.number}</div>
                   </button>
                 ))}
               </div>
             </div>
           </div>
         )}
-      </div>
 
-      {/* Bottom Reassurance */}
-      <div className="bg-white/10 backdrop-blur-sm py-6 text-center">
-        <div className="flex items-center justify-center gap-2 text-white mb-2">
-          <Heart className="w-5 h-5" />
-          <p className="font-semibold">You are valued. You matter. Help is here.</p>
+        {/* Bottom Message */}
+        <div className="mt-6 text-center">
+          <p className="text-white text-lg font-semibold drop-shadow-lg">
+            You are not alone. Help is available 24/7.
+          </p>
         </div>
-        <p className="text-white/80 text-sm">All calls are confidential and free</p>
       </div>
     </div>
   );
+
+  // Render using Portal to ensure it appears above all other content
+  return createPortal(content, document.body);
 }

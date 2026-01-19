@@ -181,7 +181,7 @@ if __name__ == "__main__":
     
     # Train the model
     intents_path = '../intents.json'
-    csv_path = '../Mental Health Chatbot Dataset - Friend mode and Professional mode Responses.csv'
+    csv_path = 'train_data.csv'
     
     chatbot.train(intents_path, csv_path)
     

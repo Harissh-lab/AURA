@@ -6,44 +6,14 @@
 const fs = require('fs');
 const path = require('path');
 
-// Crisis detection function (EXPANDED from app.py)
+// Crisis detection function (from app.py)
 function detectCrisisKeywords(text) {
   const crisisKeywords = [
-    // Direct suicide mentions
-    'suicide', 'suicidal', 'kill myself', 'killing myself',
-    'end my life', 'ending my life', 'take my life', 'taking my life',
-    
-    // Death wishes
-    'want to die', 'wanna die', 'wish i was dead', 'wish i were dead',
-    'better off dead', 'want to be dead', "don't want to live",
-    'no reason to live', 'not worth living', "life isn't worth",
-    
-    // Ending/finishing expressions
-    'end it all', 'end this', 'finish myself', 'finish it',
-    "can't go on", 'cannot go on', 'give up on life',
-    
-    // Self-harm
-    'harm myself', 'hurt myself', 'cut myself', 'cutting myself',
-    'self harm', 'self-harm', 'self injury',
-    
-    // Crisis methods
-    'overdose', 'jump off', 'hang myself', 'hanging myself',
-    'shoot myself', 'drown myself', 'pills',
-    
-    // Hopelessness (paraphrased crisis language)
-    'no way out', 'no escape', 'trapped', 'no hope',
-    'hopeless', 'helpless', 'no point in living',
-    "don't see a point", 'no point anymore', 'pointless',
-    
-    // Pain/suffering expressions
-    "can't take this", 'cannot take this', "can't take it",
-    'too much pain', 'unbearable', "can't bear",
-    'want it to stop', 'make it stop', 'end the pain',
-    
-    // Finality expressions  
-    'saying goodbye', 'final goodbye', "won't be here",
-    'better without me', 'burden', 'everyone would be better',
-    'disappear forever', 'cease to exist', 'stop existing'
+    'suicide', 'kill myself', 'end my life', 'want to die',
+    'harm myself', 'cut myself', 'overdose', 'jump off',
+    "don't want to live", 'better off dead', 'end it all',
+    'take my life', 'suicidal', 'self harm', 'hurt myself',
+    'no reason to live', "can't go on", 'finish myself'
   ];
   
   const textLower = text.toLowerCase();

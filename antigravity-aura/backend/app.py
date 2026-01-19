@@ -443,8 +443,9 @@ def detect_crisis_keywords(text):
     Includes direct mentions, euphemisms, and paraphrased expressions.
     """
     crisis_keywords = [
-        # Direct suicide mentions
-        'suicide', 'suicidal', 'kill myself', 'killing myself',
+        # Direct suicide mentions (including common misspellings)
+        'suicide', 'suicidal', 'sucide', 'suicde', 'suiside', 'sucidal',
+        'kill myself', 'killing myself',
         'end my life', 'ending my life', 'take my life', 'taking my life',
         
         # Death wishes

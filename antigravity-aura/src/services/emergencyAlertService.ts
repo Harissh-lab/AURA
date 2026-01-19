@@ -218,10 +218,10 @@ export function getCallablePhoneNumber(phone: string): string {
 /**
  * Initiate phone call to crisis helpline
  */
-export function callCrisisHelpline(phoneNumber?: string): void {
-  const crisisNumber = phoneNumber || '14416';
+export function callCrisisHelpline(): void {
+  const crisisNumber = '14416';
   window.location.href = `tel:${crisisNumber}`;
-  console.log('📞 Initiating call to Crisis Helpline:', crisisNumber);
+  console.log('📞 Initiating call to Tele MANAS (National Mental Health Helpline):', crisisNumber);
 }
 
 /**
