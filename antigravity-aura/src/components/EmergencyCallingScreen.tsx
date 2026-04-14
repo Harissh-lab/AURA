@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Phone, AlertTriangle, Heart, Shield, X, Volume2, User } from 'lucide-react';
+import { Phone, AlertTriangle, Heart, Shield, X, Volume2, User, ArrowLeft } from 'lucide-react';
 import { getCurrentUser } from '../services/authService';
 import { getUserEmergencyData, callCrisisHelpline, callEmergencyContact, type EmergencyContact } from '../services/emergencyAlertService';
 
@@ -46,7 +46,7 @@ export function EmergencyCallingScreen({ onClose, detectionData }: EmergencyCall
                   // No emergency contacts, call crisis helpline
                   console.log('🚨 AUTO-CALLING Crisis Helpline: Tele MANAS');
                   setActiveCall('Tele MANAS');
-                  callCrisisHelpline('14416');
+                  callCrisisHelpline();
                 }
               }, 1000); // 1 second delay to show screen
             }
@@ -57,7 +57,7 @@ export function EmergencyCallingScreen({ onClose, detectionData }: EmergencyCall
               setTimeout(() => {
                 console.log('🚨 AUTO-CALLING Crisis Helpline: Tele MANAS');
                 setActiveCall('Tele MANAS');
-                callCrisisHelpline('14416');
+                callCrisisHelpline();
               }, 1000);
             }
           }
@@ -70,7 +70,7 @@ export function EmergencyCallingScreen({ onClose, detectionData }: EmergencyCall
           setTimeout(() => {
             console.log('🚨 AUTO-CALLING Crisis Helpline (fallback)');
             setActiveCall('Tele MANAS');
-            callCrisisHelpline('14416');
+            callCrisisHelpline();
           }, 1000);
         }
       }
@@ -102,7 +102,7 @@ export function EmergencyCallingScreen({ onClose, detectionData }: EmergencyCall
 
   const handleCallHelpline = (helpline: { name: string; number: string }) => {
     setActiveCall(helpline.name);
-    callCrisisHelpline(helpline.number);
+    callCrisisHelpline();
   };
 
   const handleCallContact = (contact: EmergencyContact) => {
@@ -131,6 +131,16 @@ export function EmergencyCallingScreen({ onClose, detectionData }: EmergencyCall
           backgroundSize: '50px 50px'
         }}></div>
       </div>
+
+      {/* Back Button */}
+      <button
+        onClick={onClose}
+        className="absolute top-6 left-6 flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all z-20 backdrop-blur-sm"
+        aria-label="Back"
+      >
+        <ArrowLeft className="w-5 h-5" />
+        <span className="text-sm font-semibold">Back</span>
+      </button>
 
       {/* Close Button */}
       <button

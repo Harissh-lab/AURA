@@ -581,7 +581,11 @@ def translate_to_language(text, target_language):
         language_codes = {
             'hindi': 'hi',
             'tamil': 'ta',
+            'tamil (தமிழ்)': 'ta',
+            'தமிழ்': 'ta',
             'telugu': 'te',
+            'telugu (తెలుగు)': 'te',
+            'తెలుగు': 'te',
             'marathi': 'mr',
             'bengali': 'bn',
             'gujarati': 'gu',

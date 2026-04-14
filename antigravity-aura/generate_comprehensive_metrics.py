@@ -32,7 +32,7 @@ def create_comprehensive_dashboard():
     categories = ['Crisis\nDetection', 'DistilRoBERTa\nIntent', 
                   'Random Forest\nDistress', 'T5 Empathy\nGenerator', 'TF-IDF\nFallback',
                   'ML System\nAverage']
-    scores = [100, 80.62, 78.85, 95, 75, 85.89]
+    scores = [93, 80.62, 78.85, 95, 75, 84.49]
     colors = ['#90EE90', '#FF6B6B', '#4ECDC4', '#FFA07A', '#45B7D1', '#FFD700']
     
     bars = ax1.bar(categories, scores, color=colors, alpha=0.85, edgecolor='black', linewidth=2)
@@ -45,7 +45,7 @@ def create_comprehensive_dashboard():
                 fontsize=13, fontweight='bold')
     
     ax1.set_ylabel('Accuracy (%)', fontsize=14, fontweight='bold')
-    ax1.set_title('AURA Mental Health AI - ML Model Performance Metrics\nOverall ML System Accuracy: 85.89%', 
+    ax1.set_title('AURA Mental Health AI - ML Model Performance Metrics\nOverall ML System Accuracy: 84.49%', 
                  fontsize=18, fontweight='bold', pad=20)
     ax1.set_ylim(0, 105)
     ax1.axhline(y=90, color='green', linestyle='--', alpha=0.4, linewidth=2, label='Excellent (90%+)')
@@ -201,7 +201,7 @@ def create_comprehensive_dashboard():
     ax7 = fig.add_subplot(gs[2, 2])
     
     components = ['ML Distress', 'Category Match', 'Response Match', 'Crisis Detect']
-    comp_scores = [78.85, 80.0, 73.1, 100.0]
+    comp_scores = [78.85, 80.0, 73.1, 93.0]
     comp_colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#90EE90']
     
     bars7 = ax7.barh(components, comp_scores, color=comp_colors, alpha=0.85, 
@@ -226,8 +226,8 @@ def create_comprehensive_dashboard():
     # ========================================================================
     stats_text = f"""AURA ML Performance Summary
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
-Overall ML System: 85.89%
-Crisis Detection: 100%
+    Overall ML System: 84.49%
+    Crisis Detection: 93%
 DistilRoBERTa Intent: 80.62%
 Random Forest Distress: 78.85%
 T5 Empathy Gen: 95%
@@ -264,7 +264,7 @@ if __name__ == "__main__":
     print("\nGenerated file:")
     print("  📊 comprehensive_metrics_dashboard.png")
     print("\nThis single image contains:")
-    print("  • Overall ML system accuracy (85.89%)")
+    print("  • Overall ML system accuracy (84.49%)")
     print("  • ML training quality metrics")
     print("  • ML models comparison")
     print("  • Both confusion matrices")

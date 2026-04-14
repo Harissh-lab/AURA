@@ -4,12 +4,13 @@ import { ChatBot } from './ChatBot';
 import { ProgressTracking } from './ProgressTracking';
 import { Reports } from './Reports';
 import { EmergencySOS } from './EmergencySOS';
+import { EmergencyCallingScreen } from './EmergencyCallingScreen';
 
 interface HomePageProps {
   onLogout: () => void;
 }
 
-type ActiveSection = 'dashboard' | 'chatbot' | 'progress' | 'reports' | 'sos';
+type ActiveSection = 'dashboard' | 'chatbot' | 'progress' | 'reports' | 'sos' | 'emergency-call';
 
 export function HomePage({ onLogout }: HomePageProps) {
   const [activeSection, setActiveSection] = useState<ActiveSection>('dashboard');
@@ -17,9 +18,15 @@ export function HomePage({ onLogout }: HomePageProps) {
   const [touchEnd, setTouchEnd] = useState<{ x: number; y: number } | null>(null);
   const [slidePosition, setSlidePosition] = useState(0);
   const [isSliding, setIsSliding] = useState(false);
+  const [crisisDetectionData, setCrisisDetectionData] = useState<{ confidence: number; probability: number } | undefined>(undefined);
 
   const handleEmergencySOS = () => {
     setActiveSection('sos');
+  };
+
+  const handleEmergencyCall = (detectionData?: { confidence: number; probability: number }) => {
+    setCrisisDetectionData(detectionData);
+    setActiveSection('emergency-call');
   };
 
   // Swipe gesture handlers
@@ -146,13 +153,21 @@ export function HomePage({ onLogout }: HomePageProps) {
       {activeSection === 'chatbot' && (
         <ChatBot 
           onBack={() => setActiveSection('dashboard')} 
-          onNavigateToSOS={handleEmergencySOS}
+          onNavigateToEmergencyCall={handleEmergencyCall}
         />
       )}
 
       {/* SOS - Full Screen */}
       {activeSection === 'sos' && (
         <EmergencySOS onBack={() => setActiveSection('dashboard')} />
+      )}
+
+      {/* Emergency Calling - Full Screen */}
+      {activeSection === 'emergency-call' && (
+        <EmergencyCallingScreen
+          onClose={() => setActiveSection('dashboard')}
+          detectionData={crisisDetectionData}
+        />
       )}
 
       {/* Other sections with container */}

@@ -9,7 +9,7 @@ avg_quality = sum(d.get('quality_score',0) for d in data)/len(data)
 ml_acc = 78.85      # ENHANCED v2: RandomForest + Features (was 66.96)
 cat_acc = 80
 match_acc = 73.1
-crisis_acc = 100
+crisis_acc = 93
 
 # Weighted overall accuracy
 overall = (ml_acc*0.20 + cat_acc*0.25 + match_acc*0.15 + avg_quality*0.25 + crisis_acc*0.15)

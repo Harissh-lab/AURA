@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, Send, Mic, MicOff, Shield, Lock, AlertTriangle, History, X, Globe, Check, Volume2, VolumeX, Phone, PhoneCall } from 'lucide-react';
+import { ArrowLeft, Send, Mic, MicOff, Shield, Lock, AlertTriangle, History, X, Globe, Check, Volume2, VolumeX, Phone, PhoneCall, RefreshCw } from 'lucide-react';
 import { sendMessage as sendMessageToBackend } from '../services/chatService';
 import { saveChatMessage, loadChatHistory, clearChatHistory } from '../services/chatHistoryService';
 import { speechRecognitionService, SUPPORTED_LANGUAGES, getLanguageForBackend, getLanguageName, type SpeechRecognitionResult } from '../services/speechService';
@@ -10,7 +10,7 @@ import { getCurrentUser } from '../services/authService';
 
 interface ChatBotProps {
   onBack: () => void;
-  onNavigateToSOS?: () => void;
+  onNavigateToEmergencyCall?: (detectionData?: { confidence: number; probability: number }) => void;
 }
 
 interface Message {
@@ -21,7 +21,27 @@ interface Message {
   isDistress?: boolean;
 }
 
-export function ChatBot({ onBack, onNavigateToSOS }: ChatBotProps) {
+const CLOUD_TTS_VOICE_PREFIX = 'AURA Cloud';
+const CLOUD_TTS_VOICES: Array<{ name: string; lang: string; voiceURI: string }> = [
+  { name: 'AURA Cloud Tamil (தமிழ்)', lang: 'ta-IN', voiceURI: 'aura-cloud-ta' },
+  { name: 'AURA Cloud Telugu (తెలుగు)', lang: 'te-IN', voiceURI: 'aura-cloud-te' },
+];
+
+function createCloudVoice(name: string, lang: string, voiceURI: string): SpeechSynthesisVoice {
+  return {
+    default: false,
+    lang,
+    localService: false,
+    name,
+    voiceURI,
+  } as SpeechSynthesisVoice;
+}
+
+function isCloudVoiceName(voiceName: string): boolean {
+  return voiceName.startsWith(CLOUD_TTS_VOICE_PREFIX);
+}
+
+export function ChatBot({ onBack, onNavigateToEmergencyCall }: ChatBotProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -36,6 +56,12 @@ export function ChatBot({ onBack, onNavigateToSOS }: ChatBotProps) {
   const [userMessagesInSession, setUserMessagesInSession] = useState<string[]>([]);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [autoPlayTTS, setAutoPlayTTS] = useState(false); // Auto-play disabled by default
+  const [showVoiceSelector, setShowVoiceSelector] = useState(false);
+  const [availableTTSVoices, setAvailableTTSVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [isRefreshingVoices, setIsRefreshingVoices] = useState(false);
+  const [selectedVoiceName, setSelectedVoiceName] = useState(() => {
+    return localStorage.getItem('aura_preferred_tts_voice') || '';
+  });
   const [showCrisisModal, setShowCrisisModal] = useState(false);
   const [crisisEmergencyContacts, setCrisisEmergencyContacts] = useState<EmergencyContact[]>([]);
   const [showSOSCountdown, setShowSOSCountdown] = useState(false);
@@ -50,6 +76,117 @@ export function ChatBot({ onBack, onNavigateToSOS }: ChatBotProps) {
     return localStorage.getItem('aura_preferred_language') || 'en-US';
   });
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const backendAudioRef = useRef<HTMLAudioElement | null>(null);
+  const backendAudioUrlRef = useRef<string | null>(null);
+
+  const sortVoicesForLanguage = (voices: SpeechSynthesisVoice[], languageCode: string) => {
+    const selectedPrefix = languageCode.split('-')[0].toLowerCase();
+    const pinnedPrefixes = ['ta', 'te'];
+
+    const isPinnedVoice = (voice: SpeechSynthesisVoice) => {
+      const voicePrefix = voice.lang.split('-')[0].toLowerCase();
+      return voice.voiceURI?.startsWith('aura-cloud-') || pinnedPrefixes.includes(voicePrefix);
+    };
+
+    return [...voices].sort((a, b) => {
+      const aPinned = isPinnedVoice(a);
+      const bPinned = isPinnedVoice(b);
+
+      if (aPinned !== bPinned) {
+        return aPinned ? -1 : 1;
+      }
+
+      const aMatchesSelected = a.lang.toLowerCase().startsWith(selectedPrefix);
+      const bMatchesSelected = b.lang.toLowerCase().startsWith(selectedPrefix);
+
+      if (aMatchesSelected !== bMatchesSelected) {
+        return aMatchesSelected ? -1 : 1;
+      }
+
+      if (a.localService !== b.localService) {
+        return a.localService ? -1 : 1;
+      }
+
+      if (a.default !== b.default) {
+        return a.default ? -1 : 1;
+      }
+
+      return a.name.localeCompare(b.name);
+    });
+  };
+
+  const withCloudFallbackVoices = (voices: SpeechSynthesisVoice[]) => {
+    const combinedVoices = [...voices];
+
+    CLOUD_TTS_VOICES.forEach((cloudVoice) => {
+      const hasLanguageVoice = combinedVoices.some((voice) =>
+        voice.lang.toLowerCase().startsWith(cloudVoice.lang.split('-')[0].toLowerCase())
+      );
+      const hasCloudEntry = combinedVoices.some((voice) => voice.name === cloudVoice.name);
+
+      if (!hasLanguageVoice && !hasCloudEntry) {
+        combinedVoices.push(createCloudVoice(cloudVoice.name, cloudVoice.lang, cloudVoice.voiceURI));
+      }
+    });
+
+    return combinedVoices;
+  };
+
+  useEffect(() => {
+    const refreshVoices = async () => {
+      const allVoices = await textToSpeechService.refreshVoices();
+      const voicesWithFallback = withCloudFallbackVoices(allVoices);
+      const prioritizedVoices = sortVoicesForLanguage(voicesWithFallback, selectedLanguage);
+
+      setAvailableTTSVoices(prioritizedVoices);
+
+      if (prioritizedVoices.length === 0) {
+        return;
+      }
+
+      const voiceIsAvailable = prioritizedVoices.some(voice => voice.name === selectedVoiceName);
+      if (!selectedVoiceName || !voiceIsAvailable) {
+        const fallbackVoice = prioritizedVoices[0];
+        setSelectedVoiceName(fallbackVoice.name);
+        localStorage.setItem('aura_preferred_tts_voice', fallbackVoice.name);
+      }
+    };
+
+    refreshVoices();
+
+    const synth = window.speechSynthesis;
+    const handleVoicesChanged = () => refreshVoices();
+    if (typeof synth?.addEventListener === 'function') {
+      synth.addEventListener('voiceschanged', handleVoicesChanged);
+    }
+
+    const timer = window.setTimeout(refreshVoices, 250);
+
+    return () => {
+      window.clearTimeout(timer);
+      if (typeof synth?.removeEventListener === 'function') {
+        synth.removeEventListener('voiceschanged', handleVoicesChanged);
+      }
+    };
+  }, [selectedLanguage, selectedVoiceName]);
+
+  const handleRefreshVoices = async () => {
+    setIsRefreshingVoices(true);
+    try {
+      const voices = await textToSpeechService.refreshVoices([0, 250, 700, 1400, 2200]);
+      const voicesWithFallback = withCloudFallbackVoices(voices);
+      const prioritizedVoices = sortVoicesForLanguage(voicesWithFallback, selectedLanguage);
+
+      setAvailableTTSVoices(prioritizedVoices);
+      if (prioritizedVoices.length > 0 && !prioritizedVoices.some(voice => voice.name === selectedVoiceName)) {
+        const fallbackVoice = prioritizedVoices[0];
+        setSelectedVoiceName(fallbackVoice.name);
+        localStorage.setItem('aura_preferred_tts_voice', fallbackVoice.name);
+      }
+    } finally {
+      setIsRefreshingVoices(false);
+    }
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -151,7 +288,7 @@ export function ChatBot({ onBack, onNavigateToSOS }: ChatBotProps) {
   useEffect(() => {
     return () => {
       // Stop any ongoing speech
-      textToSpeechService.stop();
+      stopSpeaking();
       
       if (userMessagesInSession.length > 0) {
         const saveSession = async () => {
@@ -201,12 +338,12 @@ export function ChatBot({ onBack, onNavigateToSOS }: ChatBotProps) {
       const requiresCrisisIntervention = response.distress_detection?.requires_crisis_intervention || false;
       
       if (requiresCrisisIntervention) {
-        console.log('🚨 CRISIS DETECTED - Showing crisis message and redirecting to SOS page');
+        console.log('🚨 CRISIS DETECTED - Redirecting immediately to Emergency Calling screen');
         
         // Create comprehensive crisis alert message
         const crisisAlertMessage: Message = {
           id: (Date.now() + 1).toString(),
-          text: "🚨 **CRISIS ALERT ACTIVATED**\n\nI've detected that you may be in immediate danger. Your safety is my top priority.\n\n**Action Taken:**\n• Emergency support resources are being prepared\n• Redirecting you to the SOS Emergency Support page\n• Crisis intervention protocols activated\n\n**You are not alone. Help is available 24/7.**\n\n🇮🇳 **India Crisis Helplines:**\n• Tele MANAS: 14416 (Free, 24/7, 20+ languages)\n• KIRAN: 1800-599-0019\n• Vandrevala Foundation: 1860-2662-345",
+          text: "🚨 **CRISIS ALERT ACTIVATED**\n\nI've detected that you may be in immediate danger. Your safety is my top priority.\n\n**Action Taken:**\n• Emergency calling screen is opening now\n• Crisis intervention protocols activated\n• Connecting you to immediate support\n\n**You are not alone. Help is available 24/7.**\n\n🇮🇳 **India Crisis Helplines:**\n• Tele MANAS: 14416 (Free, 24/7, 20+ languages)\n• KIRAN: 1800-599-0019\n• Vandrevala Foundation: 1860-2662-345",
           sender: 'bot',
           timestamp: new Date(),
           isDistress: true
@@ -231,8 +368,8 @@ export function ChatBot({ onBack, onNavigateToSOS }: ChatBotProps) {
               currentUser.uid,
               messageText,
               {
-                confidence: response.distress_detection.confidence,
-                probability: response.distress_detection.distress_probability
+                confidence: response.distress_detection?.confidence ?? 0,
+                probability: response.distress_detection?.distress_probability ?? 0
               }
             );
             console.log('✅ Crisis alert triggered successfully');
@@ -241,11 +378,11 @@ export function ChatBot({ onBack, onNavigateToSOS }: ChatBotProps) {
           }
         }
         
-        // Redirect to SOS page after message is saved
-        setTimeout(() => {
-          console.log('🔄 Redirecting to SOS page...');
-          onNavigateToSOS?.();
-        }, 2500); // 2.5 seconds to ensure message is visible and saved
+        // Redirect immediately to emergency calling screen
+        onNavigateToEmergencyCall?.({
+          confidence: response.distress_detection?.confidence ?? 0,
+          probability: response.distress_detection?.distress_probability ?? 0,
+        });
         
         setIsLoading(false);
         return; // Stop here, don't show bot response
@@ -377,57 +514,83 @@ export function ChatBot({ onBack, onNavigateToSOS }: ChatBotProps) {
   };
 
   // Text-to-Speech Functions
-  const speakMessage = async (messageId: string, text: string) => {
+  const speakMessageViaBackend = async (messageId: string, text: string) => {
     try {
-      // Stop any currently playing audio first
-      stopSpeaking();
-      
-      setSpeakingMessageId(messageId);
-      
-      // Call backend TTS endpoint
       const response = await fetch('http://127.0.0.1:5000/api/tts', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          text: text,
+          text,
           language: selectedLanguage
-        }),
+        })
       });
-      
+
       if (!response.ok) {
-        throw new Error('TTS request failed');
+        throw new Error(`Backend TTS failed with status ${response.status}`);
       }
-      
-      // Get audio blob
+
       const audioBlob = await response.blob();
       const audioUrl = URL.createObjectURL(audioBlob);
-      
-      // Create and play audio
       const audio = new Audio(audioUrl);
-      audio.setAttribute('data-message-id', messageId);
-      audio.className = 'tts-audio'; // Add a class for easy selection
-      
+
+      backendAudioRef.current = audio;
+      backendAudioUrlRef.current = audioUrl;
+
       audio.onended = () => {
-        if (speakingMessageId === messageId) {
-          setSpeakingMessageId(null);
+        setSpeakingMessageId(currentId => currentId === messageId ? null : currentId);
+        if (backendAudioUrlRef.current) {
+          URL.revokeObjectURL(backendAudioUrlRef.current);
+          backendAudioUrlRef.current = null;
         }
-        URL.revokeObjectURL(audioUrl);
-        audio.remove();
+        backendAudioRef.current = null;
       };
-      
+
       audio.onerror = () => {
-        if (speakingMessageId === messageId) {
-          setSpeakingMessageId(null);
+        setSpeakingMessageId(currentId => currentId === messageId ? null : currentId);
+        if (backendAudioUrlRef.current) {
+          URL.revokeObjectURL(backendAudioUrlRef.current);
+          backendAudioUrlRef.current = null;
         }
-        URL.revokeObjectURL(audioUrl);
-        audio.remove();
+        backendAudioRef.current = null;
       };
-      
-      // Append to body to make it queryable
-      document.body.appendChild(audio);
+
       await audio.play();
+    } catch (error) {
+      console.error('Backend TTS failed:', error);
+      setSpeakingMessageId(null);
+    }
+  };
+
+  const speakMessage = (messageId: string, text: string) => {
+    try {
+      // Stop any currently playing speech first
+      stopSpeaking();
+      
+      setSpeakingMessageId(messageId);
+
+      if (selectedVoiceName && isCloudVoiceName(selectedVoiceName)) {
+        void speakMessageViaBackend(messageId, text);
+        return;
+      }
+
+      textToSpeechService.speak(
+        text,
+        {
+          language: getTTSLanguageCode(selectedLanguage),
+          voiceName: selectedVoiceName || undefined,
+          rate: 1,
+          pitch: 1,
+          volume: 1
+        },
+        () => {
+          setSpeakingMessageId(currentId => currentId === messageId ? null : currentId);
+        },
+        () => {
+          setSpeakingMessageId(currentId => currentId === messageId ? null : currentId);
+        }
+      );
       
     } catch (error) {
       console.log('TTS not available');
@@ -436,18 +599,26 @@ export function ChatBot({ onBack, onNavigateToSOS }: ChatBotProps) {
   };
 
   const stopSpeaking = () => {
-    // Stop all TTS audio elements
-    const audioElements = document.querySelectorAll('audio.tts-audio');
-    audioElements.forEach(audio => {
-      audio.pause();
-      audio.currentTime = 0;
-      const url = audio.src;
-      if (url.startsWith('blob:')) {
-        URL.revokeObjectURL(url);
-      }
-      audio.remove();
-    });
+    textToSpeechService.stop();
+
+    if (backendAudioRef.current) {
+      backendAudioRef.current.pause();
+      backendAudioRef.current.currentTime = 0;
+      backendAudioRef.current = null;
+    }
+
+    if (backendAudioUrlRef.current) {
+      URL.revokeObjectURL(backendAudioUrlRef.current);
+      backendAudioUrlRef.current = null;
+    }
+
     setSpeakingMessageId(null);
+  };
+
+  const handleVoiceSelection = (voiceName: string) => {
+    setSelectedVoiceName(voiceName);
+    localStorage.setItem('aura_preferred_tts_voice', voiceName);
+    setShowVoiceSelector(false);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -472,8 +643,8 @@ export function ChatBot({ onBack, onNavigateToSOS }: ChatBotProps) {
               <p className="text-gray-600">Choose your preferred language to begin your journey</p>
             </div>
 
-            {/* Language Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
+            {/* Language Grid - Scrollable on smaller screens */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6 max-h-96 overflow-y-auto pr-2 language-grid-scroll">
             {SUPPORTED_LANGUAGES.map((lang) => (
               <button
                 key={lang.code}
@@ -538,18 +709,29 @@ export function ChatBot({ onBack, onNavigateToSOS }: ChatBotProps) {
               
               {/* TTS Auto-play Toggle */}
               {textToSpeechService.isAvailable() && (
-                <button
-                  onClick={() => setAutoPlayTTS(!autoPlayTTS)}
-                  className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm transition-colors ${
-                    autoPlayTTS
-                      ? 'bg-teal-100 text-teal-700 hover:bg-teal-200'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                  title={autoPlayTTS ? 'Auto-play enabled' : 'Auto-play disabled'}
-                >
-                  {autoPlayTTS ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-                  <span>{autoPlayTTS ? 'Auto-play ON' : 'Auto-play OFF'}</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowVoiceSelector(!showVoiceSelector)}
+                    className="flex items-center gap-2 px-3 py-1 rounded-full text-sm transition-colors bg-amber-100 text-amber-700 hover:bg-amber-200"
+                    title="Choose reading voice"
+                  >
+                    <Volume2 className="w-4 h-4" />
+                    <span>Voice</span>
+                  </button>
+
+                  <button
+                    onClick={() => setAutoPlayTTS(!autoPlayTTS)}
+                    className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm transition-colors ${
+                      autoPlayTTS
+                        ? 'bg-teal-100 text-teal-700 hover:bg-teal-200'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                    title={autoPlayTTS ? 'Auto-play enabled' : 'Auto-play disabled'}
+                  >
+                    {autoPlayTTS ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                    <span>{autoPlayTTS ? 'Auto-play ON' : 'Auto-play OFF'}</span>
+                  </button>
+                </div>
               )}
               
               <div className="flex items-center gap-2 text-green-600 bg-green-50 px-3 py-1 rounded-full">
@@ -823,6 +1005,86 @@ export function ChatBot({ onBack, onNavigateToSOS }: ChatBotProps) {
             </div>
           )}
 
+          {/* Voice Selector */}
+          {showVoiceSelector && textToSpeechService.isAvailable() && (
+            <div className="mb-3 bg-gray-50 border border-gray-200 rounded-xl overflow-hidden">
+              <div className="flex items-center justify-between p-4 pb-3">
+                <div className="flex items-center gap-2">
+                  <Volume2 className="w-5 h-5 text-amber-600" />
+                  <h3 className="font-semibold text-gray-800">Choose Reading Voice</h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleRefreshVoices}
+                    disabled={isRefreshingVoices}
+                    className="inline-flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    title="Refresh installed voices"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingVoices ? 'animate-spin' : ''}`} />
+                    <span>{isRefreshingVoices ? 'Refreshing...' : 'Refresh'}</span>
+                  </button>
+                  <button
+                    onClick={() => setShowVoiceSelector(false)}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+              <div className="px-4 py-3 space-y-2 border-b border-gray-200">
+                <p className="text-sm text-gray-600">
+                  Selected voice: <span className="font-semibold text-gray-800">{selectedVoiceName || 'Auto'}</span>
+                </p>
+                <p className="text-xs text-gray-500">
+                  Showing all available browser voices. Voices matching your selected language are listed first.
+                </p>
+              </div>
+              <div
+                className="px-4 pb-4 voice-selector-scroll"
+                style={{
+                  height: '320px',
+                  overflowY: 'scroll',
+                  scrollbarWidth: 'auto',
+                  msOverflowStyle: 'auto',
+                  WebkitOverflowScrolling: 'touch'
+                }}
+              >
+                <div className="grid gap-2">
+                  {availableTTSVoices.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-gray-300 bg-white p-3 text-sm text-gray-500">
+                      No browser voices are available yet. Try opening this panel again after a moment.
+                    </div>
+                  ) : (
+                    availableTTSVoices.map((voice) => (
+                      <button
+                        key={voice.name}
+                        onClick={() => handleVoiceSelection(voice.name)}
+                        className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-3 text-left transition-colors ${
+                          selectedVoiceName === voice.name
+                            ? 'bg-amber-100 border-amber-400'
+                            : 'bg-white border-gray-200 hover:bg-gray-50'
+                        }`}
+                      >
+                        <div>
+                          <div className="text-sm font-semibold text-gray-800">{voice.name}</div>
+                          <div className="text-xs text-gray-500">
+                            {voice.lang}
+                            {voice.voiceURI?.startsWith('aura-cloud-') ? ' · cloud' : ''}
+                            {voice.localService ? ' · local' : ''}
+                            {voice.default ? ' · default' : ''}
+                          </div>
+                        </div>
+                        {selectedVoiceName === voice.name && (
+                          <Check className="w-4 h-4 text-amber-600" />
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="flex items-end gap-2">
             <div className="flex-1 relative">
               <textarea
@@ -914,7 +1176,7 @@ export function ChatBot({ onBack, onNavigateToSOS }: ChatBotProps) {
                 <AlertTriangle className="w-12 h-12 animate-bounce" />
               </div>
               <h2 className="text-2xl font-bold">🚨 Crisis Detected</h2>
-              <p className="text-red-100 mt-2">Redirecting to Emergency SOS Page</p>
+              <p className="text-red-100 mt-2">Redirecting to Emergency Calling Screen</p>
             </div>
             
             {/* Countdown */}
@@ -954,11 +1216,11 @@ export function ChatBot({ onBack, onNavigateToSOS }: ChatBotProps) {
               <button
                 onClick={() => {
                   setShowSOSCountdown(false);
-                  onNavigateToSOS?.();
+                  onNavigateToEmergencyCall?.();
                 }}
                 className="mt-4 px-6 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl transition-all"
               >
-                Go to SOS Page Now
+                Go to Emergency Call Now
               </button>
             </div>
           </div>

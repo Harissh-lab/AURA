@@ -2,6 +2,7 @@
 
 export interface TTSOptions {
   language: string;
+  voiceName?: string;
   rate?: number;     // Speed (0.1 to 10, default 1)
   pitch?: number;    // Pitch (0 to 2, default 1)
   volume?: number;   // Volume (0 to 1, default 1)
@@ -23,7 +24,11 @@ class TextToSpeechService {
       this.loadVoices();
       
       // Voices may load asynchronously
-      if (this.synth.onvoiceschanged !== undefined) {
+      if (typeof this.synth.addEventListener === 'function') {
+        this.synth.addEventListener('voiceschanged', () => {
+          this.loadVoices();
+        });
+      } else if (this.synth.onvoiceschanged !== undefined) {
         this.synth.onvoiceschanged = () => {
           this.loadVoices();
         };
@@ -84,6 +89,59 @@ class TextToSpeechService {
   }
 
   /**
+   * Get all available browser voices.
+   */
+  getAllVoices(): SpeechSynthesisVoice[] {
+    if (!this.synth) return [];
+
+    if (!this.voicesLoaded) {
+      this.loadVoices();
+    }
+
+    return [...this.voices];
+  }
+
+  /**
+   * Force refresh browser voices with short retries for late-loading OS voices.
+   */
+  async refreshVoices(retryDelays: number[] = [0, 300, 900, 1600]): Promise<SpeechSynthesisVoice[]> {
+    if (!this.synth) {
+      return [];
+    }
+
+    for (let i = 0; i < retryDelays.length; i++) {
+      const delay = retryDelays[i];
+      if (delay > 0) {
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+
+      this.loadVoices();
+      if (this.voices.length > 0) {
+        break;
+      }
+    }
+
+    return [...this.voices];
+  }
+
+  /**
+   * Get a voice by name for the selected language, with a global fallback.
+   */
+  getVoiceByName(languageCode: string, voiceName?: string): SpeechSynthesisVoice | null {
+    if (!voiceName) {
+      return null;
+    }
+
+    const voicesForLanguage = this.getVoicesForLanguage(languageCode);
+    const exactMatch = voicesForLanguage.find(voice => voice.name === voiceName);
+    if (exactMatch) {
+      return exactMatch;
+    }
+
+    return this.voices.find(voice => voice.name === voiceName) || null;
+  }
+
+  /**
    * Speak the given text
    */
   speak(
@@ -133,9 +191,13 @@ class TextToSpeechService {
     utterance.pitch = options.pitch || 1;
     utterance.volume = options.volume || 1;
 
-    // Try to find a suitable voice for the language
+    // Try to find a selected voice first, then fall back to the default language voice
     const voices = this.getVoicesForLanguage(options.language);
-    if (voices.length > 0) {
+    const selectedVoice = this.getVoiceByName(options.language, options.voiceName);
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
+      console.log(`🔊 Using selected voice: ${utterance.voice.name} (${utterance.voice.lang})`);
+    } else if (voices.length > 0) {
       // Prefer local voices, then female voices
       const localVoice = voices.find(v => v.localService);
       const femaleVoice = voices.find(v => v.name.toLowerCase().includes('female'));

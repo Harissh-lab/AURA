@@ -17,8 +17,8 @@ export interface SpeechRecognitionOptions {
 export const SUPPORTED_LANGUAGES = [
   // Top Indian Languages (Primary)
   { code: 'hi-IN', name: 'Hindi', flag: '🇮🇳' },
-  { code: 'ta-IN', name: 'Tamil', flag: '🇮🇳' },
-  { code: 'te-IN', name: 'Telugu', flag: '🇮🇳' },
+  { code: 'ta-IN', name: 'Tamil (தமிழ்)', flag: '🇮🇳' },
+  { code: 'te-IN', name: 'Telugu (తెలుగు)', flag: '🇮🇳' },
   { code: 'mr-IN', name: 'Marathi', flag: '🇮🇳' },
   { code: 'bn-IN', name: 'Bengali', flag: '🇮🇳' },
   { code: 'gu-IN', name: 'Gujarati', flag: '🇮🇳' },

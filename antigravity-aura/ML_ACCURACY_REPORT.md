@@ -2,28 +2,28 @@
 
 **Generated:** January 11, 2026  
 **Status:** Production-Ready ML System  
-**Overall ML Accuracy:** 85.89%
+**Overall ML Accuracy:** 84.49%
 
 ---
 
 ## 📊 Executive Summary
 
-AURA's machine learning system achieves **85.89% overall accuracy** across 5 specialized ML models trained on 2,270+ mental health conversations. The system demonstrates **100% crisis detection** capability with strong performance in intent classification, distress detection, and empathetic response generation.
+AURA's machine learning system achieves **84.49% overall accuracy** across 5 specialized ML models trained on 2,270+ mental health conversations. The system demonstrates **93% crisis detection** capability with strong performance in intent classification, distress detection, and empathetic response generation.
 
 ---
 
 ## 🎯 Overall Performance Metrics
 
-### ML System Accuracy: **85.89%**
+### ML System Accuracy: **84.49%**
 
 | Component | Accuracy | Status | Weight |
 |-----------|----------|--------|--------|
-| **Crisis Detection** | 100% | ✅ Perfect | Critical |
+| **Crisis Detection** | 93% | ✅ Excellent | Critical |
 | **DistilRoBERTa Intent** | 80.62% | ✅ Excellent | High |
 | **Random Forest Distress** | 78.85% | ✅ Good | High |
 | **T5 Empathy Generator** | 95%* | ✅ Excellent | Medium |
 | **TF-IDF Fallback** | 75% | ✅ Good | Low |
-| **ML System Average** | **85.89%** | ✅ Excellent | - |
+| **ML System Average** | **84.49%** | ✅ Excellent | - |
 
 *T5 accuracy estimated from final test loss: 0.0032
 
@@ -32,7 +32,7 @@ AURA's machine learning system achieves **85.89% overall accuracy** across 5 spe
 ## 🧠 Model-by-Model Performance
 
 ### 1. Crisis Detection System
-**Accuracy: 100%** ✅ PERFECT
+**Accuracy: 93%** ✅ EXCELLENT
 
 **Purpose:** Detect suicide, self-harm, and crisis situations
 
@@ -313,17 +313,17 @@ Balance Score:      Good (near 50/50)
 | Task | Model | Score |
 |------|-------|-------|
 | Empathetic Response | T5-Small | 95%* |
-| Crisis Response | Rule-based | 100% |
+| Crisis Response | Rule-based | 93% |
 | Fallback Response | TF-IDF | 73.1/100 |
-| **Average** | - | **89.37%** |
+| **Average** | - | **87.03%** |
 
 ### Overall System
 | Component | Weight | Score | Contribution |
 |-----------|--------|-------|--------------|
-| Crisis Detection | Critical | 100% | Essential |
+| Crisis Detection | Critical | 93% | Essential |
 | Intent Models | 40% | 78.16% | 31.26 |
-| Response Gen | 60% | 89.37% | 53.62 |
-| **Weighted Total** | - | - | **85.89%** |
+| Response Gen | 60% | 87.03% | 52.22 |
+| **Weighted Total** | - | - | **84.49%** |
 
 ---
 
@@ -361,7 +361,7 @@ All accuracy graphs available in [`accuracy_graphs/`](accuracy_graphs/) folder:
 ## 🎯 Strengths & Limitations
 
 ### ✅ Strengths
-1. **Perfect Crisis Detection (100%)** - Zero missed suicide mentions
+1. **Strong Crisis Detection (93%)** - Safety-critical coverage
 2. **Strong Intent Classification (80.62%)** - DistilRoBERTa transformer
 3. **Balanced Performance** - Good precision AND recall
 4. **Production-Ready** - Tested on real conversations
@@ -396,8 +396,8 @@ All accuracy graphs available in [`accuracy_graphs/`](accuracy_graphs/) folder:
 
 ## ✅ Conclusion
 
-AURA's ML system achieves **85.89% overall accuracy** with:
-- ✅ **100% crisis detection** (perfect safety record)
+AURA's ML system achieves **84.49% overall accuracy** with:
+- ✅ **93% crisis detection** (safety-critical)
 - ✅ **80.62% intent classification** (excellent performance)
 - ✅ **78.85% distress detection** (strong accuracy)
 - ✅ **95% empathetic generation** (high-quality responses)
